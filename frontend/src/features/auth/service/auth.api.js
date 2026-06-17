@@ -18,9 +18,26 @@ catch(err){
 
 }
 export async function register(username , email , password){
+try{
+const res = await api.post("/api/auth/register",{username , email , password})
+return res.data 
 
-
+}
+catch(err){
+    throw err 
+    console.log(err)
+}
 
     
 }
+export async function getme(){
+    try{
+const res = api.get("/api/auth/getme")
+return res.data
 
+    }
+    catch(err){
+        console.log(err)
+        throw err 
+    }
+}

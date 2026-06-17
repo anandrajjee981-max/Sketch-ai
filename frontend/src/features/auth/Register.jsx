@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import '../style/login.scss';
 import { useNavigate } from 'react-router';
+import useauth from './hooks/useauth';
 
 const Register = () => {
   const [formData, setFormData] = useState({
-    name: '',
+    username: '',
     email: '',
     password: '',
     confirmPassword: ''
@@ -13,7 +14,7 @@ const Register = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const navigate = useNavigate();
-
+const {handleregister} = useauth()
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -21,14 +22,19 @@ const Register = () => {
     });
   };
 
-  const handleSubmit = (e) => {
+ async function handleSubmit (e){
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
       alert("Passwords don't match!");
       return;
     }
     console.log('Register attempt:', formData);
-    // TODO: Add your registration API call here
+  const res = await handleregister(formData.name , formData.email, formData.password)
+  if(res){
+    navigate('/dashboard')
+  }
+
+
   };
 
   return (
@@ -45,8 +51,8 @@ const Register = () => {
             <input
               type="text"
               id="name"
-              name="name"
-              value={formData.name}
+              name="username"
+              value={formData.username}
               onChange={handleChange}
               placeholder="Enter your full name"
               autoComplete="off"

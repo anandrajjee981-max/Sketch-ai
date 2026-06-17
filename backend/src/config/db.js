@@ -1,12 +1,11 @@
 import mongoose from "mongoose";
 
-const connectDatabase = async (mongoUri) => {
-  mongoose.set("strictQuery", false);
-  await mongoose.connect(mongoUri, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  });
-  console.log("MongoDB connected");
-};
+function connectDatabase(){
+mongoose.connect(process.env.MONGODB_URI)
+.then=()=>{
+console.log("db connect")
+}
+
+}
 
 export default connectDatabase;

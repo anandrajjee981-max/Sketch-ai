@@ -70,14 +70,17 @@ export const registerUser = async (req, res) => {
 };
 
 export const verifyUser = async (req, res) => {
-  // Yeh token query string (?token=...) ya request body se nikalega
-  const token = req.query.token || req.body.token;
+  // FIX: Look for 'token' instead of 'authToken' to match your verificationUrl (?token=...)
+  const token = 
+    req.query.token || 
+    req.body.token || 
+    (req.headers.authorization && req.headers.authorization.split(' ')[1]);
+
   if (!token) {
     return res.status(400).json({ message: "Verification token is required." });
   }
 
   try {
-    // FIXED: Dono jagah ab SAME secret key hai
     const decoded = jwt.verify(token, process.env.VERIFICATION_SECRET);
     const user = await User.findById(decoded.userId);
     
@@ -104,6 +107,8 @@ export const verifyUser = async (req, res) => {
       user: { id: user._id, name: user.name, email: user.email, verified: user.verified } 
     });
   } catch (error) {
+    // Helpful trick: Log the actual error to your terminal so you can see if it's expired vs malicious
+    console.error("JWT Verification Error:", error.message);
     res.status(400).json({ message: "Invalid or expired verification token." });
   }
 };
@@ -115,7 +120,7 @@ export const loginUser = async (req, res) => {
   }
 
   try {
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).select("+password");
     if (!user) {
       return res.status(401).json({ message: "Invalid email or password." });
     }
@@ -163,13 +168,32 @@ export const loginUser = async (req, res) => {
     }
 
     const authToken = createToken(
-      { userId: user._id, email: user.email },
+      { id: user._id, email: user.email },
       process.env.JWT_SECRET,
       "7d"
     );
-
+res.cookie('authToken', authToken, {
+    httpOnly: true, 
+    secure: false,  
+    maxAge: 7 * 24 * 60 * 60 * 1000 // Cookie expires in 7 days
+});
     res.json({ token: authToken, user: { id: user._id, name: user.name, email: user.email, verified: user.verified } });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
+export const getme = async(req,res)=>{
+try{
+const user = req.user
+res.status(200).json({
+  user
+})
+
+}
+catch(err){
+return res.status(500).json({
+  message : "internal server error"
+})
+}
+  
+}

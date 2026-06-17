@@ -7,7 +7,7 @@ import { store } from './features/App.store.js'
 
 createRoot(document.getElementById('root')).render(
 <Provider store={store}>
-<APP/>
+<App/>
 
 </Provider>
 )

@@ -1,18 +1,23 @@
 import React, { useState } from 'react';
 import '../style/login.scss';
 import { useNavigate } from 'react-router';
+import useauth from './hooks/useauth';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+const {handlelogin , loading} = useauth()
 
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+async function  handleSubmit (e) {
     e.preventDefault();
-    console.log('Login attempt:', { email, password, rememberMe });
+const res = await handlelogin(email,password)
+if(res){
+  navigate('/dashboard')
+}
+
   };
 
   return (
@@ -61,17 +66,7 @@ const Login = () => {
             </div>
           </div>
 
-          <div className="form-options">
-            <label className="remember-me">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-              />
-              Remember me
-            </label>
-            <a href="#" className="forgot-password">Forgot Password?</a>
-          </div>
+      
 
           <button type="submit" className="login-button">
             Sign In
