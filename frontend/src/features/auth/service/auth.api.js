@@ -32,7 +32,7 @@ catch(err){
 }
 export async function getme(){
     try{
-const res = api.get("/api/auth/getme")
+const res =await api.get("/api/auth/getme")
 return res.data
 
     }

@@ -6,7 +6,7 @@ import {useDispatch, useSelector} from 'react-redux'
     const auth = useSelector(state =>state.auth)
 async function handlelogin(email , password){
     try{
-dispatch(authStart)
+dispatch(authStart())
 const res = await login(email , password)
 dispatch(authSuccess(res))
 return res
@@ -33,19 +33,20 @@ catch(err){
 }
 async function handlegetme(){
   try{
-dispatch(authStart())
-const res = await getme()
-dispatch(authSuccess(res.user))
-return res ;
+    dispatch(authStart())
 
+    const res = await getme()
 
+    dispatch(authSuccess(res)) // <-- not res.user
+
+    return res
   }
   catch(err){
- dispatch(
-        authFailure(
-          err.response?.data?.message ||"extract failed"
-        ))
-
+    dispatch(
+      authFailure(
+        err.response?.data?.message || "extract failed"
+      )
+    )
   }
 }
 
