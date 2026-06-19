@@ -24,7 +24,7 @@ if(res){
     <div className="login-container">
       <div className="login-card">
         <div className="login-header">
-          <h1>Welcome Back</h1>
+          <h1>Sketch Ai</h1>
           <p>Sign in to continue</p>
         </div>
 

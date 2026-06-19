@@ -1,72 +1,111 @@
-import Chat from "../models/Chat.js";
-import User from "../models/User.js";
-import Message from "../models/Message.js";
+import chatmodel from "../models/Chat.js";
+import messagemodel from "../models/Message.js";
+import { startChat, genratetitle } from "../service/ai.service.js";
 
-export const getChats = async (req, res) => {
+export async function sendmessage(req, res) {
   try {
-    const chats = await Chat.find({})
-      .populate("users", "name email")
-      .populate({ path: "latestMessage", populate: { path: "sender", select: "name email" } });
-    res.json(chats);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+    const { message, chat: chatid } = req.body;
 
-export const createChat = async (req, res) => {
-  const { chatName, isGroupChat, users } = req.body;
-  if (!users || !Array.isArray(users) || users.length === 0) {
-    return res.status(400).json({ message: "Users array is required." });
-  }
-
-  try {
-    const validUsers = await User.find({ _id: { $in: users } });
-    if (validUsers.length !== users.length) {
-      return res.status(400).json({ message: "One or more users are invalid." });
+    if (!message?.trim()) {
+      return res.status(400).json({
+        message: "Message is required",
+      });
     }
 
-    const chat = await Chat.create({ chatName, isGroupChat: Boolean(isGroupChat), users });
-    const populatedChat = await Chat.findById(chat._id).populate("users", "name email");
-    res.status(201).json(populatedChat);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+    let title = null;
+    let chatId = chatid;
 
-export const getChatById = async (req, res) => {
-  try {
-    const chat = await Chat.findById(req.params.id)
-      .populate("users", "name email")
-      .populate({ path: "latestMessage", populate: { path: "sender", select: "name email" } });
-    if (!chat) return res.status(404).json({ message: "Chat not found." });
-    res.json(chat);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+    // Create new chat
+    if (!chatId) {
+      title = await genratetitle(message);
 
-export const updateChat = async (req, res) => {
-  try {
-    const chat = await Chat.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
+      const newChat = await chatmodel.create({
+        title,
+        user: req.user.id,
+      });
+
+      chatId = newChat._id;
+    }
+
+    // Save current user message FIRST
+    const usermessage = await messagemodel.create({
+      role: "user",
+      content: message,
+      chat: chatId,
+    });
+
+    // Fetch conversation history
+    const messages = await messagemodel
+      .find({ chat: chatId })
+      .sort({ createdAt: 1 });
+
+    console.log("Messages sent to AI:", messages.length);
+
+    // Generate AI response
+    const response = await startChat(messages);
+
+    // Save AI response
+    const aimessage = await messagemodel.create({
+      role: "ai",
+      content: response,
+      chat: chatId,
+    });
+
+    return res.status(200).json({
+      title,
+      chatId,
+      usermessage,
+      aimessage,
+    });
+  } catch (err) {
+    console.error(err);
+
+    return res.status(500).json({
+      message: "Internal server error",
+      error: err.message,
+    });
+  }
+}
+export async function getchat(req,res){
+  const user = req.user.id
+const chat = await chatmodel.find({user : user})
+if(!chat){
+  return res.status(404).json({
+    message : "no chat found"
+  })
+}
+res.status(200).json({
+  chat
+})
+
+}
+export async function getmessage(req,res){
+  const chat = req.params.chat
+  const message = await messagemodel.find({chat : chat})
+  if(!message){
+    return res.status(400).json({
+      message : "not message found"
     })
-      .populate("users", "name email")
-      .populate({ path: "latestMessage", populate: { path: "sender", select: "name email" } });
-    if (!chat) return res.status(404).json({ message: "Chat not found." });
-    res.json(chat);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
   }
-};
+  res.status(200).json({
+    message
+  })
 
-export const deleteChat = async (req, res) => {
-  try {
-    const chat = await Chat.findByIdAndDelete(req.params.id);
-    if (!chat) return res.status(404).json({ message: "Chat not found." });
-    await Message.deleteMany({ chat: chat._id });
-    res.json({ message: "Chat and related messages deleted." });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+}
+export async function deletemessage(req,res){
+  const chat = req.params.chat
+  const message = await messagemodel.findOneAndDelete({chat : chat})
+  res.status(200).json({
+    message : "deleted sucessfully"
+  })
+}
+
+
+
+
+
+
+
+
+
+
