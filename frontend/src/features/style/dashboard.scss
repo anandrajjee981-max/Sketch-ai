@@ -21,6 +21,110 @@ html, body {
   font-family: 'Segoe UI', system-ui, sans-serif;
 }
 
+.sidebar-mobile-backdrop {
+  position: absolute; 
+  inset: 0; 
+  z-index: 190; 
+  background: rgba(0,0,0,0.4); 
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.history-item-wrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+
+  &:hover {
+    .menu-trigger-btn {
+      opacity: 1;
+    }
+  }
+}
+
+.history-item {
+  width: 100%;
+  padding: 10px 40px 10px 18px; 
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: $text-secondary;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+
+  &:hover, &.active {
+    color: $text-primary;
+    background: rgba(255, 255, 255, 0.03);
+  }
+}
+
+.menu-trigger-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: $text-secondary;
+  cursor: pointer;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0; 
+  transition: opacity 0.2s ease, background 0.2s ease;
+  z-index: 10;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+  }
+}
+
+.action-dropdown-menu {
+  position: absolute;
+  right: 10px;
+  top: 85%;
+  background: #1c1b1b;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  padding: 6px;
+  z-index: 250;
+  min-width: 120px;
+  display: flex;
+  flex-direction: column;
+
+  .dropdown-action-btn {
+    background: transparent;
+    border: none;
+    padding: 8px 12px;
+    color: #ff5252; 
+    font-size: 0.82rem;
+    font-weight: 500;
+    text-align: left;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    transition: background 0.2s ease;
+
+    &:hover {
+      background: rgba(255, 82, 82, 0.1);
+    }
+  }
+}
+
 .dashboard-container {
   height: 100dvh;
   width: 100vw;
@@ -38,7 +142,6 @@ html, body {
   }
 }
 
-// ==================== SIDEBAR CONFIGURATION ====================
 .sidebar {
   width: 260px;
   height: 100%;
@@ -86,11 +189,6 @@ html, body {
   flex-direction: column;
   gap: 6px;
 
-  .history-item-wrapper {
-    position: relative;
-    width: 100%;
-  }
-
   .active-indicator {
     position: absolute;
     left: 2px;
@@ -102,27 +200,8 @@ html, body {
     border-radius: 2px;
     opacity: 0;
   }
-
-  .history-item {
-    width: 100%;
-    padding: 10px 12px 10px 18px;
-    background: transparent;
-    border: none;
-    border-radius: 8px;
-    color: $text-secondary;
-    font-size: 0.88rem;
-    text-align: left;
-    cursor: pointer;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: block;
-
-    &:hover { color: $text-primary; }
-  }
 }
 
-// ==================== MAIN CORE PANEL ====================
 .main-panel {
   flex: 1;
   min-width: 0;
@@ -139,7 +218,6 @@ html, body {
   justify-content: space-between;
   padding: 18px 28px;
   z-index: 10;
-
   .navbar-heading { font-size: 0.9rem; font-weight: 500; color: $text-secondary; }
 }
 
@@ -149,9 +227,11 @@ html, body {
   padding: 20px 28px;
   display: flex;
   flex-direction: column;
+  -ms-overflow-style: none;  
+  scrollbar-width: none;  
+  &::-webkit-scrollbar { display: none; }
 }
 
-// ==================== WELCOME & GRID SYSTEM ====================
 .welcome-screen {
   margin: auto 0;
   width: 100%;
@@ -181,7 +261,9 @@ html, body {
   width: 100%;
   overflow-x: auto;
   padding: 15px 2px;
-  &::-webkit-scrollbar { height: 0; }
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
 }
 
 .kinetic-card {
@@ -200,7 +282,6 @@ html, body {
   p { color: $text-secondary; font-size: 0.85rem; line-height: 1.4; }
 }
 
-// ==================== PERFECT SIDE-BY-SIDE INTERACTION INTERFACE ====================
 .messages-list {
   display: flex;
   flex-direction: column;
@@ -214,38 +295,27 @@ html, body {
   display: flex;
   width: 100%;
   
-  // USER ALIGNED PERFECTLY TO THE RIGHT SIDE
   &.user-align {
     justify-content: flex-end;
-    
     .message-box {
       align-items: flex-end;
       .bubble {
         background: $card-bg;
         border: 1px solid rgba(255, 255, 255, 0.12);
         color: $text-primary;
-        border-radius: 20px 20px 4px 20px; // Dynamic custom corner
+        border-radius: 20px 20px 4px 20px;
         font-size: 1.05rem;
         box-shadow: 0 10px 25px -10px $shadow-dark;
       }
     }
   }
 
-  // AI MODEL ALIGNED PERFECTLY TO THE LEFT SIDE
   &.ai-align {
     justify-content: flex-start;
-    
     .message-box {
       align-items: flex-start;
-      max-width: 82%; // Gives neat breathability room on right
-      
-      .bubble {
-        background: transparent;
-        border: none;
-        color: $text-primary;
-        font-size: 1rem;
-        padding: 0px; // Looks incredibly clean in space
-      }
+      max-width: 85%;
+      .bubble { background: transparent; border: none; color: $text-primary; font-size: 1rem; padding: 0px; }
     }
   }
 }
@@ -253,60 +323,24 @@ html, body {
 .message-box {
   display: flex;
   flex-direction: column;
-  max-width: 70%;
-
-  .author-tag {
-    font-size: 0.72rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: $text-secondary;
-    margin-bottom: 6px;
-  }
-
+  max-width: 75%;
+  .author-tag { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: $text-secondary; margin-bottom: 6px; }
   .bubble {
     padding: 14px 20px;
     line-height: 1.6;
     
-    // Markdown Engine Typography Controls
     .markdown-body {
       p { margin-bottom: 12px; &:last-child { margin-bottom: 0; } }
       ul, ol { margin-left: 20px; margin-bottom: 12px; }
       li { margin-bottom: 4px; }
       strong { color: #ffffff; font-weight: 600; }
-      code {
-        font-family: monospace;
-        background: rgba(255, 255, 255, 0.06);
-        padding: 2px 6px;
-        border-radius: 4px;
-        font-size: 0.9rem;
-      }
-      pre {
-        background: $input-bg;
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        padding: 16px;
-        border-radius: 12px;
-        overflow-x: auto;
-        margin: 12px 0;
-        code { background: none; padding: 0; }
-      }
+      code { font-family: monospace; background: rgba(255, 255, 255, 0.06); padding: 2px 6px; border-radius: 4px; font-size: 0.9rem; }
+      pre { background: $input-bg; border: 1px solid rgba(255, 255, 255, 0.05); padding: 16px; border-radius: 12px; overflow-x: auto; margin: 12px 0; code { background: none; padding: 0; } }
     }
-
-    .status-pill {
-      display: inline-flex;
-      align-items: center;
-      font-size: 0.75rem;
-      color: $text-secondary;
-      background: rgba(255, 255, 255, 0.04);
-      padding: 4px 10px;
-      border-radius: 6px;
-      margin-bottom: 14px;
-      border: 1px solid rgba(255, 255, 255, 0.05);
-    }
+    .status-pill { display: inline-flex; align-items: center; font-size: 0.75rem; color: $text-secondary; background: rgba(255, 255, 255, 0.04); padding: 4px 10px; border-radius: 6px; margin-bottom: 14px; border: 1px solid rgba(255, 255, 255, 0.05); }
   }
 }
 
-// ==================== DOCK BAR INTERFACE ====================
 .input-dock-container {
   background: transparent;
   padding: 16px 28px 24px;
@@ -333,28 +367,225 @@ html, body {
     color: $text-primary;
     font-size: 0.98rem;
     padding: 8px 4px;
+    min-width: 50px; // Prevents squishing mic button on small screens
     &::placeholder { color: rgba(163, 159, 153, 0.4); }
+  }
+
+  .mic-action-btn {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.45);
+    padding: 8px;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+
+    &:hover {
+      color: #e6e2dd;
+      background: rgba(255, 255, 255, 0.05);
+      transform: scale(1.05);
+    }
+
+    &.active-listening {
+      color: #ff4757;
+      background: rgba(255, 71, 87, 0.15);
+      box-shadow: 0 0 15px rgba(255, 71, 87, 0.4);
+      animation: listeningPulse 1.5s infinite ease-in-out;
+    }
+  }
+
+  .send-action-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: linear-gradient(90deg, #f8f8f8, #e8e8e8);
+    color: #111;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
   }
 }
 
-.send-action-btn {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: linear-gradient(90deg, #f8f8f8, #e8e8e8);
-  color: #111;
+@keyframes listeningPulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.8; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+// ==================== ADVANCED MOBILE RESPONSIVENESS ====================
+@media (max-width: 860px) {
+  .sidebar { 
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    height: 100dvh; 
+    width: 280px;
+    z-index: 200; 
+    background: #141313; 
+    box-shadow: 30px 0 60px rgba(0,0,0,0.8);
+  }
+
+  .menu-trigger-btn {
+    opacity: 1; // Always show action control options on responsive touchscreen tap points
+  }
+
+  .welcome-screen {
+    gap: 24px;
+    margin: auto 0;
+    
+    .hero-block h1 { 
+      font-size: 1.85rem; 
+      gap: 6px;
+    }
+  }
+
+  .kinetic-cascade-deck {
+    flex-direction: column; // Stack cards vertically on smaller devices to prevent cut-off logic
+    gap: 14px;
+    perspective: none;
+    padding: 5px 0;
+  }
+
+  .kinetic-card {
+    flex: unset;
+    width: 100%;
+    padding: 18px;
+    border-radius: 16px;
+  }
+
+  .message-wrapper {
+    &.user-align .message-box { max-width: 90%; }
+    &.ai-align .message-box { max-width: 95%; }
+  }
+
+  .message-box .bubble {
+    font-size: 0.95rem;
+    padding: 12px 16px;
+  }
+
+  .navbar {
+    padding: 14px 16px;
+  }
+
+  .chat-area { 
+    padding: 10px 16px; 
+  }
+
+  .input-dock-container { 
+    padding: 10px 16px 16px; 
+  }
+  .input-dock-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.input-image-preview-node {
+  max-width: 680px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+
+  .preview-image-wrapper {
+    position: relative;
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .remove-preview-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.2s;
+
+      &:hover {
+        background: #ff4757;
+      }
+    }
+  }
+
+  .preview-upload-shimmer {
+    font-size: 0.8rem;
+    color: #a39f99;
+    font-style: italic;
+    margin-bottom: 6px;
+  }
+}
+
+.plus-attachment-btn {
+  background: transparent;
   border: none;
+  color: rgba(255, 255, 255, 0.45);
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
+  transition: all 0.2s ease;
   flex-shrink: 0;
+
+  &:hover {
+    color: #e6e2dd;
+    background: rgba(255, 255, 255, 0.05);
+    transform: rotate(90deg);
+  }
 }
 
-@media (max-width: 860px) {
-  .sidebar { position: absolute; top: 0; left: 0; height: 100%; z-index: 500; background: #141313; }
-  .welcome-screen .hero-block h1 { font-size: 1.9rem; }
-  .message-box { max-width: 88%; }
-  .navbar, .chat-area { padding: 14px 16px; }
-  .input-dock-container { padding: 10px 16px 16px; }
+.chat-message-image-container {
+  max-width: 240px;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+
+  .chat-message-rendered-img {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+}
+  .message-input-bar {
+    border-radius: 14px;
+    padding: 6px 8px;
+    
+    input {
+      font-size: 0.92rem;
+    }
+  }
+}
+
+// Support for Ultra Small viewports
+@media (max-width: 400px) {
+  .welcome-screen .hero-block h1 {
+    font-size: 1.5rem;
+  }
 }

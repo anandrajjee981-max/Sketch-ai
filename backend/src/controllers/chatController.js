@@ -1,59 +1,77 @@
 import chatmodel from "../models/Chat.js";
 import messagemodel from "../models/Message.js";
 import { startChat, genratetitle } from "../service/ai.service.js";
+import { uploadImage } from "../middleware/imageupload.js";
+import chatImageModel from "../models/chatimage.js";
 
 export async function sendmessage(req, res) {
   try {
-    const { message, chat: chatid } = req.body;
+    // FIX: Destructure imageUrl (or whatever key you pass from frontend) from body
+    const { message, chat: chatid, chatId: chatIdField, imageUrl } = req.body;
+    const incomingChatId = chatid || chatIdField;
+    const chatId = incomingChatId && String(incomingChatId).trim() ? incomingChatId : null;
 
-    if (!message?.trim()) {
+    // Check if both message AND image are missing
+    if (!message?.trim() && !imageUrl) {
       return res.status(400).json({
-        message: "Message is required",
+        message: "Either a message text or an image is required",
       });
     }
 
     let title = null;
-    let chatId = chatid;
+    let activeChatId = chatId;
 
-    // Create new chat
-    if (!chatId) {
-      title = await genratetitle(message);
+    if (activeChatId) {
+      const existingChat = await chatmodel.findOne({ _id: activeChatId, user: req.user.id });
+      if (!existingChat) {
+        return res.status(404).json({
+          message: "Chat not found",
+        });
+      }
+    }
+
+    // Create new chat when no existing chat was provided
+    if (!activeChatId) {
+      // Use fallback title if message is empty but image exists
+      title = message?.trim() ? await genratetitle(message) : "Image Exploration";
 
       const newChat = await chatmodel.create({
         title,
         user: req.user.id,
       });
 
-      chatId = newChat._id;
+      activeChatId = newChat._id;
     }
 
-    // Save current user message FIRST
+    // FIX: Save current user message FIRST along with the structured image link
     const usermessage = await messagemodel.create({
       role: "user",
-      content: message,
-      chat: chatId,
+      content: message || "", 
+      chat: activeChatId,
+      image: imageUrl || null // Make sure your Message model supports an 'image' schema field
     });
 
     // Fetch conversation history
     const messages = await messagemodel
-      .find({ chat: chatId })
+      .find({ chat: activeChatId })
       .sort({ createdAt: 1 });
 
     console.log("Messages sent to AI:", messages.length);
 
-    // Generate AI response
+    // FIX: Pass messages context directly. 
+    // Make sure your backend service/ai.service.js handles an 'image' field inside the array item!
     const response = await startChat(messages);
 
     // Save AI response
     const aimessage = await messagemodel.create({
       role: "ai",
       content: response,
-      chat: chatId,
+      chat: activeChatId,
     });
 
     return res.status(200).json({
       title,
-      chatId,
+      chatId: activeChatId,
       usermessage,
       aimessage,
     });
@@ -66,46 +84,83 @@ export async function sendmessage(req, res) {
     });
   }
 }
-export async function getchat(req,res){
-  const user = req.user.id
-const chat = await chatmodel.find({user : user})
-if(!chat){
-  return res.status(404).json({
-    message : "no chat found"
-  })
-}
-res.status(200).json({
-  chat
-})
 
+export async function upload(req, res) {
+  try {  
+    if (!req.file) {
+      return res.status(400).json({
+        message: "No file uploaded",
+      });
+    }   
+    
+    // req.file.buffer aur originalname service ko pass ho rahe hain
+    const imageupload = await uploadImage(req.file.buffer, req.file.originalname);
+    
+    const chatImage = await chatImageModel.create({
+      url: imageupload.url,
+      user: req.user.id,
+      fileId: imageupload.fileId,
+      fileTitle: imageupload.fileTitle,
+    });
+    
+    return res.status(200).json({
+      message: "Image uploaded successfully",
+      imageUrl: imageupload.url, 
+      chatImage
+    });
+  }
+  catch (err) {  
+    console.error("Error catch in upload controller:", err);
+    return res.status(500).json({
+      message: "Internal server error",
+      error: err.message,
+    });     
+  }
 }
-export async function getmessage(req,res){
-  const chat = req.params.chat
-  const message = await messagemodel.find({chat : chat})
-  if(!message){
-    return res.status(400).json({
-      message : "not message found"
-    })
+
+export async function getchat(req, res) {
+  const user = req.user.id;
+  const chat = await chatmodel.find({ user: user });
+  if (!chat || chat.length === 0) {
+    return res.status(404).json({
+      message: "no chat found"
+    });
   }
   res.status(200).json({
-    message
-  })
-
+    chat
+  });
 }
-export async function deletemessage(req,res){
-  const chat = req.params.chat
-  const message = await messagemodel.findOneAndDelete({chat : chat})
+
+export async function getmessage(req, res) {
+  const chat = req.params.chat;
+  const message = await messagemodel.find({ chat: chat }).sort({ createdAt: 1 });
+  if (!message || message.length === 0) {
+    return res.status(400).json({
+      message: "no message found"
+    });
+  }
+  
   res.status(200).json({
-    message : "deleted sucessfully"
-  })
+    message
+  });
 }
 
+export async function deletemessage(req, res) {
+  try {
+    const chatId = req.params.chat;
 
+    await messagemodel.deleteMany({
+      chat: chatId,
+    });
 
+    await chatmodel.findByIdAndDelete(chatId);
 
-
-
-
-
-
-
+    return res.status(200).json({
+      message: "Chat deleted successfully",
+    });
+  } catch (err) {
+    return res.status(500).json({
+      message: err.message,
+    });
+  }
+}

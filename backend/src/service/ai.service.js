@@ -40,7 +40,18 @@ export async function startChat(messages) {
   const formattedMessages = messages
     .map((msg) => {
       if (msg.role === "user") {
-        return new HumanMessage(msg.content);
+        const contentParts = [];
+
+        if (msg.content?.trim()) {
+          contentParts.push(msg.content.trim());
+        }
+
+        if (msg.image) {
+          contentParts.push(`Image URL: ${msg.image}`);
+        }
+
+        const humanContent = contentParts.join("\n");
+        return new HumanMessage(humanContent || `Image URL: ${msg.image}`);
       }
 
       if (msg.role === "ai") {
