@@ -27,9 +27,6 @@ app.use(cookieParser());
 app.use("/api/auth", authRoutes);
 app.use("/api/chats", chatrouter);
 
-app.get("/", (req, res) => {
-  res.json({ message: "Perplexity clone backend is running." });
-});
 
 
 app.use(express.static(path.join(__dirname, "../public/dist")));
