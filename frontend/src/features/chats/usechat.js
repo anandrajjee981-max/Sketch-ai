@@ -97,25 +97,39 @@ async function handleUploadImage(file) {
     }
   }
 
-  async function handleGetMessages(chat) {
-    try {
-      dispatch(setLoading(true));
-
-      const res = await getmessage(chat);
-
-      dispatch(
-        setMessages(res.message)
-      );
-
-      dispatch(setLoading(false));
-
-      return res.message;
-    } catch (err) {
-      dispatch(setError(err.message));
-      dispatch(setLoading(false));
-      throw err;
-    }
+async function handleGetMessages(chat) {
+  // 🔍 Edge Case Check: Agar chatId string 'undefined' ya khali aa rahi hai toh api hit hi mat karo
+  if (!chat || chat === "undefined") {
+    console.warn("handleGetMessages aborted: Invalid or undefined chat parameter received.");
+    return [];
   }
+
+  try {
+    dispatch(setLoading(true));
+
+    const res = await getmessage(chat);
+    console.log("Messages response received:", res);
+
+    // ✅ FIX 1: Safe extraction lagaya. Agar res.message nahi mila to empty array [] bhejega
+    const cleanMessages = res?.message || res?.data?.message || [];
+
+    dispatch(setMessages(cleanMessages));
+    dispatch(setLoading(false));
+
+    return cleanMessages;
+  } catch (err) {
+    console.error("Error in handleGetMessages workflow:", err);
+
+    // ✅ FIX 2: Safe backend error response message nikalna
+    const backendError = err.response?.data?.message || err.message || "Failed to fetch messages";
+    
+    dispatch(setError(backendError));
+    dispatch(setLoading(false));
+    
+    // UI crash na ho isliye ek safe fallback empty array return kar rahe hain
+    return [];
+  }
+}
 
   async function handleSelectChat(chat) {
     dispatch(setCurrentChat(chat));

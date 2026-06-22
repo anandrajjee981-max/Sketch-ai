@@ -3,6 +3,7 @@ import messagemodel from "../models/Message.js";
 import { startChat, genratetitle } from "../service/ai.service.js";
 import { uploadImage } from "../middleware/imageupload.js";
 import chatImageModel from "../models/chatimage.js";
+import mongoose from "mongoose";
 
 export async function sendmessage(req, res) {
   try {
@@ -58,9 +59,15 @@ export async function sendmessage(req, res) {
 
     console.log("Messages sent to AI:", messages.length);
 
-    // FIX: Pass messages context directly. 
-    // Make sure your backend service/ai.service.js handles an 'image' field inside the array item!
-    const response = await startChat(messages);
+    // FIX: Consume async generator from startChat to produce the final text response.
+    const responseGenerator = startChat(messages, activeChatId);
+    let aiContent = "";
+
+    for await (const chunk of responseGenerator) {
+      aiContent += chunk;
+    }
+
+    const response = aiContent.trim();
 
     // Save AI response
     const aimessage = await messagemodel.create({
@@ -131,18 +138,46 @@ export async function getchat(req, res) {
   });
 }
 
+
+
 export async function getmessage(req, res) {
-  const chat = req.params.chat;
-  const message = await messagemodel.find({ chat: chat }).sort({ createdAt: 1 });
-  if (!message || message.length === 0) {
-    return res.status(400).json({
-      message: "no message found"
+  try {
+    const chatId = req.params.chat;
+
+    // ✅ FIX 1: CastError se bachne ke liye valid ObjectId ka check lagao
+    if (!chatId || !mongoose.Types.ObjectId.isValid(chatId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid Chat ID format provided."
+      });
+    }
+
+    // Messages fetch karo sequential order mein
+    const messages = await messagemodel.find({ chat: chatId }).sort({ createdAt: 1 });
+
+    // ✅ FIX 2: Empty chat ko error mat maano, balki empty array bhejo 
+    // taaki frontend `.map()` handle kar sake aur crash na ho
+    if (!messages || messages.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: [] 
+      });
+    }
+
+    // Sahi response format pass karo
+    return res.status(200).json({
+      success: true,
+      message: messages
+    });
+
+  } catch (error) {
+    console.error("Error inside getmessage controller:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+      error: error.message
     });
   }
-  
-  res.status(200).json({
-    message
-  });
 }
 
 export async function deletemessage(req, res) {
