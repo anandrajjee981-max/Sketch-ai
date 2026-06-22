@@ -17,8 +17,9 @@ export async function sendmessage(message, chat, imageUrl){
     return res.data;
   }
   catch(err){
-    console.log(err);
-    throw err;
+    console.error("chat.api.sendmessage error:", err.response?.data || err.message || err);
+    const serverMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'Request failed';
+    throw new Error(serverMessage);
   }
 }
 

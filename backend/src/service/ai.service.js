@@ -74,6 +74,13 @@ export async function* startChat(messages, chatId = "default_session") {
     throw new Error("No messages provided");
   }
 
+  // Fail fast if required model API key is not configured
+  if (!process.env.GOOGLE_API_KEY?.trim()) {
+    const msg = "Missing GOOGLE_API_KEY: AI model cannot be used without a valid API key.";
+    console.error(`[AI Service] ${msg}`);
+    throw new Error(msg);
+  }
+
   try {
     // Mutation Proof Parsing Array mapping
     const formattedMessages = messages
@@ -103,10 +110,20 @@ export async function* startChat(messages, chatId = "default_session") {
 
     console.log(`[AI Service] Processing ${formattedMessages.length} messages for chat: ${chatId}`);
 
-  const eventStream = agent.streamEvents(
-  { messages: formattedMessages },
-  { version: "v2", configurable: { thread_id: String(chatId) } }
-);
+  if (!formattedMessages.length) {
+    throw new Error("No valid messages after formatting");
+  }
+
+  let eventStream;
+  try {
+    eventStream = agent.streamEvents(
+      { messages: formattedMessages },
+      { version: "v2", configurable: { thread_id: String(chatId) } }
+    );
+  } catch (err) {
+    console.error(`[AI Service] Failed to start event stream for ${chatId}:`, err);
+    throw new Error(`AI agent stream error: ${err?.message || err}`);
+  }
 
     let eventCount = 0;
     let contentCount = 0;

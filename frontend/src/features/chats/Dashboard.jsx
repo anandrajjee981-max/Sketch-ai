@@ -413,6 +413,10 @@ const Dashboard = () => {
       }, 10)
     } catch (error) {
       console.error('Unified Chat system stream error:', error)
+      // If the server returned a JSON body with details, log it to help debugging
+      if (error?.response?.data) {
+        console.error('Server error payload:', error.response.data)
+      }
     } finally {
       setIsUploading(false)
     }

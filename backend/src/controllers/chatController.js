@@ -58,20 +58,24 @@ export async function sendmessage(req, res) {
       .sort({ createdAt: 1 });
 
     console.log("Messages sent to AI:", messages.length);
+    // Log a small preview of the last few messages for debugging
+    console.log("Messages preview:", messages.slice(-6).map(m => ({ role: m.role, content: (m.content||m.text||'').slice(0,120) })));
 
     // FIX: Consume async generator from startChat to produce the final text response.
-    const responseGenerator = startChat(messages, activeChatId);
     let aiContent = "";
-
     try {
+      const responseGenerator = startChat(messages, activeChatId);
       for await (const chunk of responseGenerator) {
         if (chunk) {
           aiContent += chunk;
         }
       }
     } catch (genError) {
-      console.error("❌ Error in AI response generator:", genError);
-      throw new Error(`AI generation failed: ${genError.message}`);
+      console.error("❌ Error in AI response generator:", genError?.stack || genError);
+      return res.status(500).json({
+        message: "AI generation failed",
+        error: genError?.message || String(genError),
+      });
     }
 
     const response = aiContent.trim();
