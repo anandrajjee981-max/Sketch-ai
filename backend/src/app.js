@@ -31,11 +31,12 @@ app.get("/", (req, res) => {
   res.json({ message: "Perplexity clone backend is running." });
 });
 
-// 3. Now __dirname will work perfectly here
-app.use(express.static(path.join(__dirname, "../public/dist")));
+
+// Agar app.js aur public folder dono same backend directory me hain:
+app.use(express.static(path.join(__dirname, "./public/dist"))); // '../' ki jagah './' karein
 
 app.get(/.*/, (req, res) => {
-  res.sendFile(path.join(__dirname, "../public/dist/index.html"));
+  res.sendFile(path.join(__dirname, "./public/dist/index.html")); // Yahan bhi './' karein
 });
 
 export default app;
