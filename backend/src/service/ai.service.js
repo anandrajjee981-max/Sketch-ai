@@ -121,8 +121,32 @@ export async function* startChat(messages, chatId = "default_session") {
       { version: "v2", configurable: { thread_id: String(chatId) } }
     );
   } catch (err) {
-    console.error(`[AI Service] Failed to start event stream for ${chatId}:`, err);
-    throw new Error(`AI agent stream error: ${err?.message || err}`);
+    // Known issue: some versions of langgraph/langchain may throw when the agent
+    // cannot build runnable sequences (reading .middle). In that case, fall
+    // back to a direct model invocation to avoid failing the request.
+    console.error(`[AI Service] Failed to start event stream for ${chatId}:`, err?.message || err);
+
+    try {
+      console.log(`[AI Service] Falling back to direct model invoke for chat: ${chatId}`);
+      const modelMessages = [new SystemMessage(agentSystemPrompt), ...formattedMessages];
+
+      // Prefer gemini model for fallback if available
+      const fallbackResp = await geminimodel.invoke(modelMessages);
+
+      if (fallbackResp?.content) {
+        yield fallbackResp.content;
+      } else if (typeof fallbackResp === 'string' && fallbackResp.trim()) {
+        yield fallbackResp;
+      } else {
+        throw new Error('Fallback model returned empty response');
+      }
+
+      // After yielding final fallback response, stop the generator
+      return;
+    } catch (fallbackErr) {
+      console.error(`[AI Service] Fallback model invoke failed for ${chatId}:`, fallbackErr);
+      throw new Error(`AI agent stream error: ${fallbackErr?.message || String(fallbackErr)}`);
+    }
   }
 
     let eventCount = 0;
