@@ -1,2 +1,4 @@
 node_modules 
 .env
+test.ai.js
+test-full-flow.js

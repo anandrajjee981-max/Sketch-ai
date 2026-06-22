@@ -63,11 +63,28 @@ export async function sendmessage(req, res) {
     const responseGenerator = startChat(messages, activeChatId);
     let aiContent = "";
 
-    for await (const chunk of responseGenerator) {
-      aiContent += chunk;
+    try {
+      for await (const chunk of responseGenerator) {
+        if (chunk) {
+          aiContent += chunk;
+        }
+      }
+    } catch (genError) {
+      console.error("❌ Error in AI response generator:", genError);
+      throw new Error(`AI generation failed: ${genError.message}`);
     }
 
     const response = aiContent.trim();
+
+    // Check if response is empty and log for debugging
+    if (!response) {
+      console.warn("⚠️ Warning: AI returned empty response for chat:", activeChatId);
+      console.warn("Messages sent:", messages.map(m => ({role: m.role, content: m.content?.substring(0, 50)})));
+      return res.status(500).json({
+        message: "AI service returned empty response. Please try again.",
+        error: "Empty AI response"
+      });
+    }
 
     // Save AI response
     const aimessage = await messagemodel.create({

@@ -11,13 +11,21 @@ import { MemorySaver } from "@langchain/langgraph";
 // Models Initialization
 const geminimodel = new ChatGoogleGenerativeAI({
   model: "gemini-2.5-flash-lite",
-  apiKey: process.env.GOOGLE_API_KEY,
+  apiKey: process.env.GOOGLE_API_KEY?.trim(),
 });
 
 const mistralModel = new ChatMistralAI({
   model: "mistral-medium-latest",
-  apiKey: process.env.MISTRAL_API_KEY,
+  apiKey: process.env.MISTRAL_API_KEY?.trim(),
 });
+
+// Validate API keys on startup
+if (!process.env.GOOGLE_API_KEY?.trim()) {
+  console.error("❌ GOOGLE_API_KEY is not configured");
+}
+if (!process.env.MISTRAL_API_KEY?.trim()) {
+  console.error("❌ MISTRAL_API_KEY is not configured");
+}
 
 // Tools Definitions with schema validation
 const emailtool = tool(
@@ -68,53 +76,122 @@ export async function* startChat(messages, chatId = "default_session") {
     throw new Error("No messages provided");
   }
 
-  // Mutation Proof Parsing Array mapping
-  const formattedMessages = messages
-    .map((msg) => {
-      if (msg.role === "user") {
-        const contentParts = [];
+  try {
+    // Mutation Proof Parsing Array mapping
+    const formattedMessages = messages
+      .map((msg) => {
+        if (msg.role === "user") {
+          const contentParts = [];
 
-        if (msg.content?.trim()) {
-          contentParts.push(msg.content.trim());
+          if (msg.content?.trim()) {
+            contentParts.push(msg.content.trim());
+          }
+
+          if (msg.image) {
+            contentParts.push(`Image URL: ${msg.image}`);
+          }
+
+          const humanContent = contentParts.join("\n");
+          return new HumanMessage(humanContent || `Image URL: ${msg.image}`);
         }
 
-        if (msg.image) {
-          contentParts.push(`Image URL: ${msg.image}`);
+        if (msg.role === "ai" || msg.role === "assistant") {
+          return new AIMessage(msg.content || msg.text || "");
         }
 
-        const humanContent = contentParts.join("\n");
-        return new HumanMessage(humanContent || `Image URL: ${msg.image}`);
+        return null;
+      })
+      .filter(Boolean);
+
+    console.log(`[AI Service] Processing ${formattedMessages.length} messages for chat: ${chatId}`);
+
+    //  FIX: Sahi streaming syntax streamEvents ke liye aur thread_id integration
+    const eventStream = await agent.streamEvents(
+      { messages: formattedMessages },
+      { version: "v2", configurable: { thread_id: chatId } }
+    );
+
+    let eventCount = 0;
+    let contentCount = 0;
+
+    for await (const event of eventStream) {
+      eventCount++;
+      const eventType = event.event;
+
+      // Debug: Log all events to identify response structure
+      if (process.env.DEBUG) {
+        console.log(`[Event ${eventCount}] ${eventType}:`, JSON.stringify(event, null, 2));
       }
 
-      if (msg.role === "ai" || msg.role === "assistant") {
-        return new AIMessage(msg.content || msg.text || "");
+      // Model se aane wale har ek text token ko catch karo aur yield karo
+      if (eventType === "on_chat_model_stream") {
+        const chunk = event.data.chunk;
+        if (chunk?.content) {
+          contentCount++;
+          yield chunk.content; 
+        }
+      }
+      
+      // Catch the final AI response from tool output events
+      else if (eventType === "on_tool_end" && event.data?.output) {
+        contentCount++;
+        const output = event.data.output;
+        // Handle both string and object outputs from tools
+        let outputText = "";
+        if (typeof output === 'string') {
+          outputText = output;
+        } else if (output && typeof output === 'object') {
+          // Filter out [object ToolMessage] and other debug strings
+          outputText = String(output).replace(/\[object \w+\]/g, "").trim();
+        }
+        if (outputText) {
+          yield outputText;
+        }
       }
 
-      return null;
-    })
-    .filter(Boolean);
+      // Catch text from other streaming events
+      else if (eventType === "on_chain_stream" && event.data?.chunk) {
+        if (typeof event.data.chunk === 'string') {
+          contentCount++;
+          const chunk = event.data.chunk.trim();
+          // Skip metadata-like chunks
+          if (chunk && chunk !== "tools" && !chunk.startsWith("[")) {
+            yield chunk;
+          }
+        }
+      }
 
-  //  FIX: Sahi streaming syntax streamEvents ke liye aur thread_id integration
-  const eventStream = await agent.streamEvents(
-    { messages: formattedMessages },
-    { version: "v2", configurable: { thread_id: chatId } }
-  );
+      // Catch agent end event with final output
+      else if (eventType === "on_chain_end" && event.data?.output) {
+        const output = event.data.output;
+        // If output is an object with output property, extract it
+        if (output?.output) {
+          contentCount++;
+          // Filter out metadata markers like __end__
+          const cleanOutput = String(output.output).replace(/__end__/g, "").trim();
+          if (cleanOutput) {
+            yield cleanOutput;
+          }
+        } else if (typeof output === 'string' && output !== "__end__") {
+          contentCount++;
+          const cleanOutput = output.replace(/__end__/g, "").trim();
+          if (cleanOutput) {
+            yield cleanOutput;
+          }
+        }
+      }
 
-  for await (const event of eventStream) {
-    const eventType = event.event;
-
-    // Model se aane wale har ek text token ko catch karo aur yield karo
-    if (eventType === "on_chat_model_stream") {
-      const chunk = event.data.chunk;
-      if (chunk?.content) {
-        yield chunk.content; 
+      else if (eventType === "on_tool_start") {
+        // Tool start event - can be logged but not yielded to keep response clean
+        console.log(`[AI Service] Using tool: ${event.data?.tool}`);
       }
     }
-    
-   
-    else if (eventType === "on_tool_start") {
-      yield `\n*🔄 [Using ${event.name}...]* \n`;
-    }
+
+    console.log(`[AI Service] Processed ${eventCount} events, yielded ${contentCount} chunks for chat: ${chatId}`);
+
+  } catch (error) {
+    console.error(`[AI Service] Error in startChat for ${chatId}:`, error);
+    throw error;
   }
 }
 
