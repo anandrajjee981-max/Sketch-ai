@@ -59,12 +59,10 @@ const internettool = tool(
 // System Message Layer configuration safely separated
 const agentSystemPrompt = `You are a helpful assistant. If you don't know the answer to a question, say you don't know instead of making up an answer. If the user asks for latest information, ALWAYS use the internettool to fetch the latest information from the internet.`;
 
-// ReAct Agent Builder initialization structure
 const agent = createReactAgent({
-  llm: geminimodel,
+  model: geminimodel,
   tools: [emailtool, internettool],
-  messageModifier: agentSystemPrompt, 
-  checkpointer: new MemorySaver(), 
+  checkpointer: new MemorySaver(),
 });
 
 /**
@@ -105,11 +103,10 @@ export async function* startChat(messages, chatId = "default_session") {
 
     console.log(`[AI Service] Processing ${formattedMessages.length} messages for chat: ${chatId}`);
 
-    //  FIX: Sahi streaming syntax streamEvents ke liye aur thread_id integration
-    const eventStream = await agent.streamEvents(
-      { messages: formattedMessages },
-      { version: "v2", configurable: { thread_id: chatId } }
-    );
+  const eventStream = agent.streamEvents(
+  { messages: formattedMessages },
+  { version: "v2", configurable: { thread_id: String(chatId) } }
+);
 
     let eventCount = 0;
     let contentCount = 0;

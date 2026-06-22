@@ -172,10 +172,11 @@ export const loginUser = async (req, res) => {
       process.env.JWT_SECRET,
       "7d"
     );
-res.cookie('authToken', authToken, {
-    httpOnly: true, 
-    secure: false,  
-    maxAge: 7 * 24 * 60 * 60 * 1000 // Cookie expires in 7 days
+res.cookie("authToken", authToken, {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+  maxAge: 7 * 24 * 60 * 60 * 1000,
 });
     res.json({ token: authToken, user: { id: user._id, name: user.name, email: user.email, verified: user.verified } });
   } catch (error) {
