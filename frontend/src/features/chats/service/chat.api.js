@@ -1,7 +1,10 @@
 import axios from 'axios'
 
 const api = axios.create({
-    baseURL : "https://sketch-ai-earj.onrender.com",
+    baseURL : {
+      "https://sketch-ai-earj.onrender.com": "https://sketch-ai-earj.onrender.com",
+      "http://localhost:3000": "http://localhost:3000"
+    }[process.env.NODE_ENV] || "http://localhost:3000",
     withCredentials: true
 })
 
@@ -17,9 +20,17 @@ export async function sendmessage(message, chat, imageUrl){
     return res.data;
   }
   catch(err){
-    console.error("chat.api.sendmessage error:", err.response?.data || err.message || err);
-    const serverMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'Request failed';
-    throw new Error(serverMessage);
+    const payload = err.response?.data;
+    console.error("chat.api.sendmessage error:", payload || err.message || err);
+
+    if (payload) {
+      // Prefer a combined message when backend provides both fields
+      const combined = payload.message && payload.error ? `${payload.message} - ${payload.error}` : (payload.message || payload.error);
+      const statusPart = err.response?.status ? ` (status ${err.response.status})` : '';
+      throw new Error(`${combined || 'Request failed'}${statusPart}`);
+    }
+
+    throw new Error(err.message || 'Request failed');
   }
 }
 

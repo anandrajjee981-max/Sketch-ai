@@ -1,7 +1,10 @@
 import axios from 'axios'
 const api = axios.create({
-    baseURL : "https://sketch-ai-earj.onrender.com",
-    withCredentials : true ,
+    baseURL : {
+      "https://sketch-ai-earj.onrender.com": "https://sketch-ai-earj.onrender.com",
+      "http://localhost:3000": "http://localhost:3000"
+    }[process.env.NODE_ENV] || "http://localhost:3000",
+    withCredentials: true
 })
 export async function login(email , password){
 try{
