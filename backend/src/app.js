@@ -32,11 +32,10 @@ app.get("/", (req, res) => {
 });
 
 
-// Agar app.js aur public folder dono same backend directory me hain:
-app.use(express.static(path.join(__dirname, "./public/dist"))); // '../' ki jagah './' karein
+app.use(express.static(path.join(__dirname, "../public/dist")));
 
 app.get(/.*/, (req, res) => {
-  res.sendFile(path.join(__dirname, "./public/dist/index.html")); // Yahan bhi './' karein
+  res.sendFile(path.join(__dirname, "../public/dist/index.html"));
 });
 
 export default app;
