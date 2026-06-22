@@ -1,44 +1,36 @@
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { ChatMistralAI } from "@langchain/mistralai";
-import { AIMessage, HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
 import { tool } from "@langchain/core/tools";
-import { createReactAgent } from "@langchain/langgraph/prebuilt"; 
+import { createAgent } from "langchain";
 import * as z from "zod";
+
 import { sendEmail } from "./mail.service.js";
 import { latestinfo } from "./internet.service.js";
-import { MemorySaver } from "@langchain/langgraph";
 
-// Models Initialization
+// Models
 const geminimodel = new ChatGoogleGenerativeAI({
   model: "gemini-2.5-flash-lite",
-  apiKey: process.env.GOOGLE_API_KEY?.trim(),
+  apiKey: process.env.GOOGLE_API_KEY,
 });
 
 const mistralModel = new ChatMistralAI({
   model: "mistral-medium-latest",
-  apiKey: process.env.MISTRAL_API_KEY?.trim(),
+  apiKey: process.env.MISTRAL_API_KEY,
 });
 
-// Validate API keys on startup
-if (!process.env.GOOGLE_API_KEY?.trim()) {
-  console.error("❌ GOOGLE_API_KEY is not configured");
-}
-if (!process.env.MISTRAL_API_KEY?.trim()) {
-  console.error("❌ MISTRAL_API_KEY is not configured");
-}
-
-// Tools Definitions with schema validation
+// Tools
 const emailtool = tool(
-  async ({ to, html, subject }) => {
-    return await sendEmail({ to, html, subject });
+  async ({ to, subject, html }) => {
+    return await sendEmail({ to, subject, html });
   },
   {
     name: "emailtool",
-    description: "Use this tool to send emails.",
+    description: "Send email",
     schema: z.object({
-      to: z.string().describe("Recipient email address"),
-      html: z.string().describe("HTML formatting string content body"),
-      subject: z.string().describe("Email clear subject layout"),
+      to: z.string(),
+      subject: z.string(),
+      html: z.string(),
     }),
   }
 );
@@ -49,206 +41,74 @@ const internettool = tool(
   },
   {
     name: "internettool",
-    description: "Use this tool to fetch the latest information from the internet.",
+    description: "Get latest information from internet",
     schema: z.object({
-      search: z.string().describe("Search query to fetch the latest information from the internet"),
+      search: z.string(),
     }),
   }
 );
 
-// System Message Layer configuration safely separated
-const agentSystemPrompt = `You are a helpful assistant. If you don't know the answer to a question, say you don't know instead of making up an answer. If the user asks for latest information, ALWAYS use the internettool to fetch the latest information from the internet.`;
-
-const agent = createReactAgent({
+// Agent
+const agent = createAgent({
   model: geminimodel,
   tools: [emailtool, internettool],
-  checkpointer: new MemorySaver(),
+  systemPrompt: `
+You are Sketch AI.
+
+Use internettool whenever user asks:
+- latest news
+- current events
+- today's information
+
+Use emailtool whenever user explicitly wants to send email.
+`,
 });
 
-/**
- *  FIX: startChat ko Async Generator banaya streaming ke liye
- * MemorySaver sahi se chalne ke liye chatId (thread_id) bhi accept karega
- */
-export async function* startChat(messages, chatId = "default_session") {
-  if (!messages?.length) {
-    throw new Error("No messages provided");
-  }
-
-  // Fail fast if required model API key is not configured
-  if (!process.env.GOOGLE_API_KEY?.trim()) {
-    const msg = "Missing GOOGLE_API_KEY: AI model cannot be used without a valid API key.";
-    console.error(`[AI Service] ${msg}`);
-    throw new Error(msg);
-  }
-
+// Chat
+export async function* startChat(messages) {
   try {
-    // Mutation Proof Parsing Array mapping
     const formattedMessages = messages
       .map((msg) => {
         if (msg.role === "user") {
-          const contentParts = [];
-
-          if (msg.content?.trim()) {
-            contentParts.push(msg.content.trim());
-          }
-
-          if (msg.image) {
-            contentParts.push(`Image URL: ${msg.image}`);
-          }
-
-          const humanContent = contentParts.join("\n");
-          return new HumanMessage(humanContent || `Image URL: ${msg.image}`);
+          return {
+            role: "user",
+            content: msg.content || "",
+          };
         }
 
         if (msg.role === "ai" || msg.role === "assistant") {
-          return new AIMessage(msg.content || msg.text || "");
+          return {
+            role: "assistant",
+            content: msg.content || "",
+          };
         }
 
         return null;
       })
       .filter(Boolean);
 
-    console.log(`[AI Service] Processing ${formattedMessages.length} messages for chat: ${chatId}`);
+    const result = await agent.invoke({
+      messages: formattedMessages,
+    });
+console.log(createAgent);
+    const finalMessage =
+      result?.messages?.[result.messages.length - 1]?.content ||
+      "No response generated.";
 
-  if (!formattedMessages.length) {
-    throw new Error("No valid messages after formatting");
-  }
-
-  let eventStream;
-  try {
-    eventStream = agent.streamEvents(
-      { messages: formattedMessages },
-      { version: "v2", configurable: { thread_id: String(chatId) } }
-    );
+    yield finalMessage;
   } catch (err) {
-    // Known issue: some versions of langgraph/langchain may throw when the agent
-    // cannot build runnable sequences (reading .middle). In that case, fall
-    // back to a direct model invocation to avoid failing the request.
-    console.error(`[AI Service] Failed to start event stream for ${chatId}:`, err?.message || err);
-
-    try {
-      console.log(`[AI Service] Falling back to direct model invoke for chat: ${chatId}`);
-      const modelMessages = [new SystemMessage(agentSystemPrompt), ...formattedMessages];
-
-      // Prefer gemini model for fallback if available
-      const fallbackResp = await geminimodel.invoke(modelMessages);
-
-      if (fallbackResp?.content) {
-        yield fallbackResp.content;
-      } else if (typeof fallbackResp === 'string' && fallbackResp.trim()) {
-        yield fallbackResp;
-      } else {
-        throw new Error('Fallback model returned empty response');
-      }
-
-      // After yielding final fallback response, stop the generator
-      return;
-    } catch (fallbackErr) {
-      console.error(`[AI Service] Fallback model invoke failed for ${chatId}:`, fallbackErr);
-      throw new Error(`AI agent stream error: ${fallbackErr?.message || String(fallbackErr)}`);
-    }
-  }
-
-    let eventCount = 0;
-    let contentCount = 0;
-
-    for await (const event of eventStream) {
-      eventCount++;
-      const eventType = event.event;
-
-      // Debug: Log all events to identify response structure
-      if (process.env.DEBUG) {
-        console.log(`[Event ${eventCount}] ${eventType}:`, JSON.stringify(event, null, 2));
-      }
-
-      // Model se aane wale har ek text token ko catch karo aur yield karo
-      if (eventType === "on_chat_model_stream") {
-        const chunk = event.data.chunk;
-        if (chunk?.content) {
-          contentCount++;
-          yield chunk.content; 
-        }
-      }
-      
-      // Catch the final AI response from tool output events
-      else if (eventType === "on_tool_end" && event.data?.output) {
-        contentCount++;
-        const output = event.data.output;
-        // Handle both string and object outputs from tools
-        let outputText = "";
-        if (typeof output === 'string') {
-          outputText = output;
-        } else if (output && typeof output === 'object') {
-          // Filter out [object ToolMessage] and other debug strings
-          outputText = String(output).replace(/\[object \w+\]/g, "").trim();
-        }
-        if (outputText) {
-          yield outputText;
-        }
-      }
-
-      // Catch text from other streaming events
-      else if (eventType === "on_chain_stream" && event.data?.chunk) {
-        if (typeof event.data.chunk === 'string') {
-          contentCount++;
-          const chunk = event.data.chunk.trim();
-          // Skip metadata-like chunks
-          if (chunk && chunk !== "tools" && !chunk.startsWith("[")) {
-            yield chunk;
-          }
-        }
-      }
-
-      // Catch agent end event with final output
-      else if (eventType === "on_chain_end" && event.data?.output) {
-        const output = event.data.output;
-        // If output is an object with output property, extract it
-        if (output?.output) {
-          contentCount++;
-          // Filter out metadata markers like __end__
-          const cleanOutput = String(output.output).replace(/__end__/g, "").trim();
-          if (cleanOutput) {
-            yield cleanOutput;
-          }
-        } else if (typeof output === 'string' && output !== "__end__") {
-          contentCount++;
-          const cleanOutput = output.replace(/__end__/g, "").trim();
-          if (cleanOutput) {
-            yield cleanOutput;
-          }
-        }
-      }
-
-      else if (eventType === "on_tool_start") {
-        // Tool start event - can be logged but not yielded to keep response clean
-        console.log(`[AI Service] Using tool: ${event.data?.tool}`);
-      }
-    }
-
-    console.log(`[AI Service] Processed ${eventCount} events, yielded ${contentCount} chunks for chat: ${chatId}`);
-
-  } catch (error) {
-    console.error(`[AI Service] Error in startChat for ${chatId}:`, error);
-    throw error;
+    console.error("Agent Error:", err);
+    throw err;
   }
 }
 
-/**
- * Descriptive Title Generator mapping utilities
- */
 export async function genratetitle(message) {
-  if (!message) return "New Conversation Space";
-
   const response = await mistralModel.invoke([
-    new SystemMessage(`
-      You are a helpful assistant that generates concise and descriptive titles for chat conversations.
-      User will provide you with the first message of a chat conversation, and you will generate a title that captures the essence of the conversation in 2-4 words. Do not put quote marks or extra explanation around the title.
-    `),
-    new HumanMessage(`
-      Generate a title for a chat conversation based on the following first message:
-      "${message}"
-    `),
+    new SystemMessage(
+      "Generate a short title in 2-4 words only."
+    ),
+    new HumanMessage(message),
   ]);
 
-  return response.content;
+  return String(response.content).trim();
 }
