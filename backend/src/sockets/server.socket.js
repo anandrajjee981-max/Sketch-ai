@@ -6,6 +6,7 @@ export function initsocket(httpserver){
              credentials : true ,
      origin: [
     "http://localhost:5173",
+    "https://sketch-ai-earj.onrender.com"
    
   ]
         }

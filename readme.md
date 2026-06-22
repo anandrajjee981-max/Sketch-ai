@@ -137,38 +137,7 @@ Socket.IO
 ↓
 Real-Time Updates
 
----
 
-## 📂 Project Structure
-
-src/
-├── features/
-│ ├── auth/
-│ ├── chats/
-│ └── uploads/
-│
-├── components/
-│ ├── Protected Routes
-│ ├── Chat Components
-│ └── UI Components
-│
-├── services/
-│ ├── AI Service
-│ ├── Auth Service
-│ ├── Search Service
-│ └── Upload Service
-│
-├── models/
-│ ├── User
-│ ├── Chat
-│ └── Message
-│
-├── controllers/
-├── routes/
-├── middleware/
-└── socket/
-
----
 
 ## 🚀 Future Roadmap
 

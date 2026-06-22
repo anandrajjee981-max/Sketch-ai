@@ -10,6 +10,7 @@ app.use(cors({
     credentials : true ,
      origin: [
     "http://localhost:5173",
+    "https://sketch-ai-earj.onrender.com"
    
   ]
 }))
@@ -22,6 +23,11 @@ app.get("/", (req, res) => {
   res.json({ message: "Perplexity clone backend is running." });
 });
 
+app.use(express.static(path.join(__dirname, "../public/dist")));
+
+app.get(/.*/, (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/dist/index.html"));
+});
 
 
 
