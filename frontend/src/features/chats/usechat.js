@@ -9,6 +9,7 @@ import {
   addMessage,
   setLoading,
   setError,
+  removeChat,
 } from "./hooks/chat.slice";
 
 import {

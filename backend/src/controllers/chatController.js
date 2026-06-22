@@ -86,10 +86,16 @@ export async function sendmessage(req, res) {
       });
     }
 
+    // Clean up the response - remove "tools" prefix and other artifacts
+    let cleanedResponse = response;
+    if (cleanedResponse.startsWith("tools")) {
+      cleanedResponse = cleanedResponse.replace(/^tools\s*/, "").trim();
+    }
+
     // Save AI response
     const aimessage = await messagemodel.create({
       role: "ai",
-      content: response,
+      content: cleanedResponse,
       chat: activeChatId,
     });
 
