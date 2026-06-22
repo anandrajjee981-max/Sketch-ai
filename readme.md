@@ -2,6 +2,8 @@
 
 An AI-powered research and productivity platform inspired by modern AI assistants like Perplexity. Sketch AI combines conversational AI, real-time communication, web search, voice input, image uploads, and document intelligence into a single application.
 
+live link https://sketch-ai-earj.onrender.com
+
 ---
 
 ## ✨ Features

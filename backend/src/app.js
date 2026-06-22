@@ -4,6 +4,7 @@ import chatrouter from "./routes/chatRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import morgan from 'morgan'
 import cookieParser from 'cookie-parser'
+import path from "path";
 const app = express();
 app.use(morgan('dev'))
 app.use(cors({
