@@ -1,10 +1,6 @@
 import axios from 'axios'
-
 const api = axios.create({
-    baseURL : {
-      "https://sketch-ai-earj.onrender.com": "https://sketch-ai-earj.onrender.com",
-      "http://localhost:3000": "http://localhost:3000"
-    }[process.env.NODE_ENV] || "http://localhost:3000",
+    baseURL :  "https://sketch-ai-earj.onrender.com",
     withCredentials: true
 })
 

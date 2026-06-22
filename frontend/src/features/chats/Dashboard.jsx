@@ -160,7 +160,7 @@ const Dashboard = () => {
     const file = e.target.files[0]
     if (!file) return
 
-    setSelectedImage(file) // Storing native JavaScript File object
+    setSelectedImage(file)
     setImagePreviewUrl(URL.createObjectURL(file))
     
     setTimeout(() => {
@@ -344,14 +344,11 @@ const Dashboard = () => {
     let uploadedImageUrl = null
     const displayImagePreview = imagePreviewUrl 
 
-    // ✅ FIX: Send raw file directly if handleUploadImage expects it, 
-    // or wrap it fresh here if handleUploadImage takes a FormData instance.
     if (selectedImage && handleUploadImage) {
       try {
         const formData = new FormData()
         formData.append('image', selectedImage)
         
-        // Passing fresh constructed FormData directly to hook execution
         const uploadRes = await handleUploadImage(formData)
         uploadedImageUrl = uploadRes?.imageUrl || uploadRes?.url || null
       } catch (err) {
@@ -413,10 +410,6 @@ const Dashboard = () => {
       }, 10)
     } catch (error) {
       console.error('Unified Chat system stream error:', error)
-      // If the server returned a JSON body with details, log it to help debugging
-      if (error?.response?.data) {
-        console.error('Server error payload:', error.response.data)
-      }
     } finally {
       setIsUploading(false)
     }
