@@ -10,27 +10,12 @@ const NewChatIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="
 const SendArrow = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
 const ThreeDotsIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
 const TrashIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+const MicIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="mic-svg"><path d="M12 1v11a3 3 0 0 1-3-3V4a3 3 0 0 1 6 0v5a3 3 0 0 1-3 3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 19v4M8 23h8"/></svg>
+const PlusIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+const CloseIcon = () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
 
-const MicIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="mic-svg">
-    <path d="M12 1v11a3 3 0 0 1-3-3V4a3 3 0 0 1 6 0v5a3 3 0 0 1-3 3z"/>
-    <path d="M19 10v1a7 7 0 0 1-14 0v-1M12 19v4M8 23h8"/>
-  </svg>
-)
-
-const PlusIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-    <line x1="12" y1="5" x2="12" y2="19" />
-    <line x1="5" y1="12" x2="19" y2="12" />
-  </svg>
-)
-
-const CloseIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-    <line x1="18" y1="6" x2="6" y2="18"></line>
-    <line x1="6" y1="6" x2="18" y2="18"></line>
-  </svg>
-)
+// New Document Icon for PDF Previews
+const FileDocIcon = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ff4d4d" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
 
 const casualSuggestions = [
   { title: 'Plan an app design layout', desc: 'Get creative structural frameworks and wireframe patterns step-by-step.' },
@@ -42,27 +27,24 @@ const Dashboard = () => {
   const chat = usechat()
   const { handleSendMessage, handleGetChats, handleGetMessages, handleSelectChat, handleDeleteChat, handleUploadImage } = usechat()
   
-  // Voice Input States
   const [isListening, setIsListening] = useState(false)
   const recognitionRef = useRef(null)
 
-  // Image Upload System States
-  const [selectedImage, setSelectedImage] = useState(null)
-  const [imagePreviewUrl, setImagePreviewUrl] = useState('')
+  // System Core States
+  const [selectedFile, setSelectedFile] = useState(null) // Renamed from selectedImage
+  const [filePreviewUrl, setFilePreviewUrl] = useState('') // Renamed from imagePreviewUrl
   const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef(null)
 
-  // System Core Logged Matrices
   const [chatsList, setChatsList] = useState([])
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [currentChatId, setCurrentChatId] = useState(null)
   
-  // Sidebar states dynamic initialization
   const [sidebarOpen, setSidebarOpen] = useState(typeof window !== 'undefined' ? window.innerWidth > 860 : false)
   const [activeMenuChatId, setActiveMenuChatId] = useState(null)
 
-  // Refs for Animations & Dropdowns
+  // Animation Refs
   const containerRef = useRef(null)
   const sidebarRef = useRef(null)
   const mainPanelRef = useRef(null)
@@ -78,7 +60,6 @@ const Dashboard = () => {
 
   const welcomeTextWords = "What would you like to create today?".split(" ")
 
-  // Click outside to dismiss history action context menu
   useEffect(() => {
     const dismissMenu = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
@@ -89,7 +70,6 @@ const Dashboard = () => {
     return () => document.removeEventListener('mousedown', dismissMenu)
   }, [])
 
-  // Initial Data Fetch & Sockets Configuration Setup
   useEffect(() => {
     chat?.intializesocket?.()
     
@@ -107,7 +87,6 @@ const Dashboard = () => {
         }
       }
     }
-    
     fetchSidebarHistory()
 
     const handleResize = () => {
@@ -118,7 +97,7 @@ const Dashboard = () => {
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  // Speech Recognition Configuration Block
+  // Web Speech API
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
     if (SpeechRecognition) {
@@ -126,42 +105,26 @@ const Dashboard = () => {
       recognition.continuous = false
       recognition.interimResults = false
       recognition.lang = 'en-US'
-
       recognition.onstart = () => setIsListening(true)
       recognition.onend = () => setIsListening(false)
-      
-      recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript
-        setInput(transcript) 
-      }
-
-      recognition.onerror = (err) => {
-        console.error("Speech Recognition Error:", err.error)
-        setIsListening(false)
-      }
+      recognition.onresult = (event) => setInput(event.results[0][0].transcript)
+      recognition.onerror = () => setIsListening(false)
       recognitionRef.current = recognition
     }
   }, [])
 
   const toggleVoiceInput = () => {
-    if (!recognitionRef.current) {
-      alert("Web Speech API is not supported in this browser. Try Google Chrome!")
-      return
-    }
-    if (isListening) {
-      recognitionRef.current.stop()
-    } else {
-      recognitionRef.current.start()
-    }
+    if (!recognitionRef.current) return alert("Web Speech API not supported.")
+    isListening ? recognitionRef.current.stop() : recognitionRef.current.start()
   }
 
-  // Handle local file picking layer
-  const handleImagePick = (e) => {
+  // Handle Dynamic File Selection (Images & PDFs)
+  const handleFilePick = (e) => {
     const file = e.target.files[0]
     if (!file) return
 
-    setSelectedImage(file)
-    setImagePreviewUrl(URL.createObjectURL(file))
+    setSelectedFile(file)
+    setFilePreviewUrl(URL.createObjectURL(file))
     
     setTimeout(() => {
       gsap.fromTo('.input-image-preview-node', 
@@ -171,16 +134,15 @@ const Dashboard = () => {
     }, 10)
   }
 
-  const removePickedImage = () => {
-    setSelectedImage(null)
-    setImagePreviewUrl('')
+  const removePickedFile = () => {
+    setSelectedFile(null)
+    setFilePreviewUrl('')
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  // GSAP Cinematic Intro Animation Timelines
+  // Animations Timelines
   useEffect(() => {
     const tl = gsap.timeline({ defaults: { ease: 'power4.out' } })
-    
     const initX = window.innerWidth <= 860 ? -280 : -260
     const targetX = window.innerWidth <= 860 ? (sidebarOpen ? 0 : -280) : 0
 
@@ -201,31 +163,23 @@ const Dashboard = () => {
     }
   }, [messages.length])
 
-  // Smooth Architectural Sidebar Flow 
   useEffect(() => {
     const isMobile = window.innerWidth <= 860
-    const offscreenDistance = isMobile ? -280 : -260
-    
     gsap.to(sidebarRef.current, {
-      x: sidebarOpen ? 0 : offscreenDistance,
-      marginLeft: 0,
+      x: sidebarOpen ? 0 : (isMobile ? -280 : -260),
       duration: 0.4,
       ease: 'power3.inOut'
     })
   }, [sidebarOpen])
 
-  // Mouse Over Suggestion Cards Rotation Logic
   const handleCardMouseMove = (e, index) => {
     if (window.innerWidth <= 860) return 
     const card = cardsRef.current[index]
     if (!card) return
     const rect = card.getBoundingClientRect()
-    const x = e.clientX - rect.left - rect.width / 2
-    const y = e.clientY - rect.top - rect.height / 2
-
     gsap.to(card, {
-      rotationY: x * 0.1,
-      rotationX: -y * 0.1,
+      rotationY: (e.clientX - rect.left - rect.width / 2) * 0.1,
+      rotationX: -(e.clientY - rect.top - rect.height / 2) * 0.1,
       transformPerspective: 1000,
       y: -8,
       backgroundColor: 'rgba(45, 43, 43, 0.85)',
@@ -238,121 +192,79 @@ const Dashboard = () => {
   const handleCardMouseLeave = (index) => {
     const card = cardsRef.current[index]
     if (!card) return
-    gsap.to(card, {
-      rotationY: 0,
-      rotationX: 0,
-      y: 0,
-      backgroundColor: 'rgba(33, 31, 31, 0.65)',
-      borderColor: 'rgba(255, 255, 255, 0.1)',
-      duration: 0.5,
-      ease: 'power3.out'
-    })
+    gsap.to(card, { rotationY: 0, rotationX: 0, y: 0, backgroundColor: 'rgba(33, 31, 31, 0.65)', borderColor: 'rgba(255, 255, 255, 0.1)', duration: 0.5, ease: 'power3.out' })
   }
 
-  // Sidebar List Items Interactions Engine
   const handleHistoryHover = (index, isEntering) => {
     if (window.innerWidth <= 860) return 
     const dot = indicatorRefs.current[index]
     const text = historyRefs.current[index]
     if (!dot || !text) return
-
-    if (isEntering) {
-      gsap.to(dot, { opacity: 1, height: 16, duration: 0.25, ease: 'power2.out' })
-      gsap.to(text, { x: 4, color: '#e6e2dd', duration: 0.25 })
-    } else {
-      gsap.to(dot, { opacity: 0, height: 0, duration: 0.25, ease: 'power2.in' })
-      gsap.to(text, { x: 0, color: '#a39f99', duration: 0.25 })
-    }
+    gsap.to(dot, { opacity: isEntering ? 1 : 0, height: isEntering ? 16 : 0, duration: 0.25 })
+    gsap.to(text, { x: isEntering ? 4 : 0, color: isEntering ? '#e6e2dd' : '#a39f99', duration: 0.25 })
   }
 
-  // Premium Input Focus Transformation Hook
   const handleInputFocus = (isFocused) => {
-    gsap.to(inputBarRef.current, {
-      borderColor: isFocused ? 'rgba(255, 255, 255, 0.35)' : 'rgba(255, 255, 255, 0.08)',
-      boxShadow: isFocused ? '0 25px 55px -10px rgba(0,0,0,0.9)' : '0 20px 45px -15px rgba(0,0,0,0.8)',
-      duration: 0.3
-    })
-
+    gsap.to(inputBarRef.current, { borderColor: isFocused ? 'rgba(255, 255, 255, 0.35)' : 'rgba(255, 255, 255, 0.08)', boxShadow: isFocused ? '0 25px 55px -10px rgba(0,0,0,0.9)' : '0 20px 45px -15px rgba(0,0,0,0.8)', duration: 0.3 })
     if (window.innerWidth > 860) {
-      gsap.to(mainPanelRef.current, {
-        scale: isFocused ? 0.992 : 1,
-        borderRadius: isFocused ? '16px' : '0px',
-        duration: 0.4,
-        ease: 'power2.out'
-      })
+      gsap.to(mainPanelRef.current, { scale: isFocused ? 0.992 : 1, borderRadius: isFocused ? '16px' : '0px', duration: 0.4, ease: 'power2.out' })
     }
-
-    gsap.to(sendBtnRef.current, {
-      scale: isFocused ? 1.06 : 1,
-      rotation: isFocused ? 45 : 0,
-      duration: 0.3
-    })
+    gsap.to(sendBtnRef.current, { scale: isFocused ? 1.06 : 1, rotation: isFocused ? 45 : 0, duration: 0.3 })
   }
 
-  // Active Context History Stream Loader
   const selectChatContext = async (chatId) => {
     if (!chatId || chatId === 'undefined') return
     setCurrentChatId(chatId)
     if (handleSelectChat) handleSelectChat(chatId)
-    
     if (handleGetMessages) {
       try {
         const historyMessages = await handleGetMessages(chatId)
         if (historyMessages && Array.isArray(historyMessages)) {
-          const normalized = historyMessages.map(msg => ({
+          setMessages(historyMessages.map(msg => ({
             id: msg._id || msg.id || Math.random().toString(),
             role: msg.role === 'user' ? 'user' : 'ai',
             text: msg.content || msg.text || '',
-            image: msg.image || null
-          }))
-          setMessages(normalized)
+            image: msg.image || msg.pdf || null, // Capture both image asset or PDF links
+            isPdf: !!msg.pdf
+          })))
         } else {
           setMessages([])
         }
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
-      } catch (err) {
-        console.error("Error setting chat logs target viewport:", err)
-      }
+      } catch (err) { console.error(err) }
     }
     if (window.innerWidth <= 860) setSidebarOpen(false)
   }
 
-  // Delete Log Context Stream Action
   const executeDeleteChat = async (chatId, e) => {
-    if (e) {
-      e.preventDefault()
-      e.stopPropagation()
-    }
+    if (e) { e.preventDefault(); e.stopPropagation(); }
     setActiveMenuChatId(null)
     try {
       if (handleDeleteChat) await handleDeleteChat(chatId)
       setChatsList((prev) => prev.filter(c => (c._id || c.id) !== chatId))
-      if (currentChatId === chatId) {
-        setMessages([])
-        setCurrentChatId(null)
-      }
-    } catch (err) {
-      console.error("Could not drop chat resource context map:", err)
-    }
+      if (currentChatId === chatId) { setMessages([]); setCurrentChatId(null); }
+    } catch (err) { console.error(err) }
   }
 
-  // Chat Submission pipeline Handler
+  // Core Submissions Unified Flow
   const streamNewMessage = async (promptContent) => {
-    if (!promptContent.trim() && !selectedImage) return
+    if (!promptContent.trim() && !selectedFile) return
 
     setIsUploading(true)
-    let uploadedImageUrl = null
-    const displayImagePreview = imagePreviewUrl 
+    let finalFileUrl = null
+    const displayFilePreview = filePreviewUrl 
+    const currentIsPdf = selectedFile?.type === "application/pdf"
 
-    if (selectedImage && handleUploadImage) {
+    if (selectedFile && handleUploadImage) {
       try {
         const formData = new FormData()
-        formData.append('image', selectedImage)
+        // 🛠️ FIX 2: Key ko 'file' kiya taaki backend par upload.single('file') isse catch kar sake
+        formData.append('file', selectedFile) 
         
         const uploadRes = await handleUploadImage(formData)
-        uploadedImageUrl = uploadRes?.imageUrl || uploadRes?.url || null
+        finalFileUrl = uploadRes?.imageUrl || uploadRes?.url || null
       } catch (err) {
-        console.error("Multer backend context mapping failed:", err)
+        console.error("Upload mapping failed:", err)
         setIsUploading(false)
         return 
       }
@@ -363,28 +275,26 @@ const Dashboard = () => {
       id: userMessageId, 
       role: 'user', 
       text: promptContent, 
-      image: displayImagePreview 
+      image: displayFilePreview,
+      isPdf: currentIsPdf
     }])
     
     setInput('')
-    removePickedImage()
+    removePickedFile()
 
     setTimeout(() => {
       const wrappers = document.querySelectorAll('.message-wrapper.user-align')
-      const lastWrapper = wrappers[wrappers.length - 1]
-      if (lastWrapper) {
-        gsap.fromTo(lastWrapper,
-          { opacity: 0, y: 20, scale: 0.96 },
-          { opacity: 1, y: 0, scale: 1, duration: 0.45, ease: 'back.out(1.2)' }
-        )
+      if (wrappers[wrappers.length - 1]) {
+        gsap.fromTo(wrappers[wrappers.length - 1], { opacity: 0, y: 20, scale: 0.96 }, { opacity: 1, y: 0, scale: 1, duration: 0.45, ease: 'back.out(1.2)' })
       }
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, 10)
 
     try {
       let res = null
-      if (handleSendMessage) res = await handleSendMessage(promptContent, currentChatId, uploadedImageUrl)
-      if (!res) throw new Error("Empty response object map.")
+      // Pass file link dynamically into standard sender pipeline
+      if (handleSendMessage) res = await handleSendMessage(promptContent, currentChatId, finalFileUrl)
+      if (!res) throw new Error("Empty response map.")
 
       if (res?.chatId && res.chatId !== currentChatId) {
         setCurrentChatId(res.chatId)
@@ -395,21 +305,18 @@ const Dashboard = () => {
         }
       }
 
-      const aiMessageId = userMessageId + 1
-      const aiText = res?.aimessage?.content || res?.aimessage?.text || res?.text || 'Response signature unresolvable.'
-
-      setMessages((prev) => [...prev, { id: aiMessageId, role: 'ai', text: aiText }])
+      const aiText = res?.aimessage?.content || res?.aimessage?.text || res?.text || 'Response unresolvable.'
+      setMessages((prev) => [...prev, { id: userMessageId + 1, role: 'ai', text: aiText }])
 
       setTimeout(() => {
         const aiWrappers = document.querySelectorAll('.message-wrapper.ai-align')
-        const lastAiWrapper = aiWrappers[aiWrappers.length - 1]
-        if (lastAiWrapper) {
-          gsap.fromTo(lastAiWrapper, { opacity: 0, y: 25 }, { opacity: 1, y: 0, duration: 0.6, ease: 'power3.out' })
+        if (aiWrappers[aiWrappers.length - 1]) {
+          gsap.fromTo(aiWrappers[aiWrappers.length - 1], { opacity: 0, y: 25 }, { opacity: 1, y: 0, duration: 0.6, ease: 'power3.out' })
         }
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
       }, 10)
     } catch (error) {
-      console.error('Unified Chat system stream error:', error)
+      console.error(error)
     } finally {
       setIsUploading(false)
     }
@@ -434,41 +341,15 @@ const Dashboard = () => {
             const isMenuOpen = activeMenuChatId === itemId
 
             return (
-              <div 
-                key={itemId} 
-                className="history-item-wrapper"
-                onMouseEnter={() => handleHistoryHover(index, true)}
-                onMouseLeave={() => handleHistoryHover(index, false)}
-              >
-                <div 
-                  className="active-indicator" 
-                  ref={el => indicatorRefs.current[index] = el}
-                  style={{ opacity: isActive ? 1 : 0, height: isActive ? '16px' : '0px' }} 
-                />
-                
-                <button 
-                  ref={el => historyRefs.current[index] = el}
-                  className={`history-item ${isActive ? 'active' : ''}`}
-                  onClick={() => selectChatContext(itemId)}
-                >
+              <div key={itemId} className="history-item-wrapper" onMouseEnter={() => handleHistoryHover(index, true)} onMouseLeave={() => handleHistoryHover(index, false)}>
+                <div className="active-indicator" ref={el => indicatorRefs.current[index] = el} style={{ opacity: isActive ? 1 : 0, height: isActive ? '16px' : '0px' }} />
+                <button Deserted ref={el => historyRefs.current[index] = el} className={`history-item ${isActive ? 'active' : ''}`} onClick={() => selectChatContext(itemId)}>
                   {item.title || item.heading || `Chat session ${index + 1}`}
                 </button>
-
-                <button 
-                  className="menu-trigger-btn"
-                  onClick={(e) => {
-                    e.preventDefault(); e.stopPropagation() 
-                    setActiveMenuChatId(isMenuOpen ? null : itemId)
-                  }}
-                >
-                  <ThreeDotsIcon />
-                </button>
-
+                <button className="menu-trigger-btn" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveMenuChatId(isMenuOpen ? null : itemId) }}><ThreeDotsIcon /></button>
                 {isMenuOpen && (
                   <div className="action-dropdown-menu" ref={dropdownRef} onClick={(e) => e.stopPropagation()}>
-                    <button className="dropdown-action-btn" onClick={(e) => executeDeleteChat(itemId, e)}>
-                      <TrashIcon /> Delete Space
-                    </button>
+                    <button className="dropdown-action-btn" onClick={(e) => executeDeleteChat(itemId, e)}><TrashIcon /> Delete Space</button>
                   </div>
                 )}
               </div>
@@ -488,23 +369,11 @@ const Dashboard = () => {
           {messages.length === 0 ? (
             <div className="welcome-screen">
               <div className="hero-block">
-                <h1>
-                  {welcomeTextWords.map((word, i) => (
-                    <span key={i} className="word">{word}</span>
-                  ))}
-                </h1>
+                <h1>{welcomeTextWords.map((word, i) => <span key={i} className="word">{word} </span>)}</h1>
               </div>
-
               <div className="kinetic-cascade-deck">
                 {casualSuggestions.map((suggest, i) => (
-                  <div 
-                    key={i} 
-                    ref={el => cardsRef.current[i] = el}
-                    className="kinetic-card"
-                    onMouseMove={(e) => handleCardMouseMove(e, i)}
-                    onMouseLeave={(e) => handleCardMouseLeave(i)}
-                    onClick={() => streamNewMessage(suggest.title)}
-                  >
+                  <div key={i} ref={el => cardsRef.current[i] = el} className="kinetic-card" onMouseMove={(e) => handleCardMouseMove(e, i)} onMouseLeave={() => handleCardMouseLeave(i)} onClick={() => streamNewMessage(suggest.title)}>
                     <h4>{suggest.title}</h4>
                     <p>{suggest.desc}</p>
                   </div>
@@ -518,9 +387,18 @@ const Dashboard = () => {
                   <div className="message-box">
                     <span className="author-tag">{m.role === 'user' ? 'You' : 'Sketch AI'}</span>
                     <div className="bubble">
+                      
+                      {/* Render Conditional Layer for Image or PDF Attachments */}
                       {m.role === 'user' && m.image && (
                         <div className="chat-message-image-container">
-                          <img src={m.image} alt="User Upload Content" className="chat-message-rendered-img" />
+                          {m.isPdf ? (
+                            <div className="pdf-attachment-bubble">
+                              <FileDocIcon />
+                              <span>Document Attached (PDF)</span>
+                            </div>
+                          ) : (
+                            <img src={m.image} alt="User Upload Content" className="chat-message-rendered-img" />
+                          )}
                         </div>
                       )}
                       
@@ -542,11 +420,18 @@ const Dashboard = () => {
         </section>
 
         <div className="input-dock-container">
-          {imagePreviewUrl && (
+          {filePreviewUrl && (
             <div className="input-image-preview-node">
               <div className="preview-image-wrapper">
-                <img src={imagePreviewUrl} alt="Upload Target Track" />
-                <button type="button" className="remove-preview-btn" onClick={removePickedImage}>
+                {selectedFile?.type === "application/pdf" ? (
+                  <div className="pdf-preview-node">
+                    <FileDocIcon />
+                    <span className="pdf-title">{selectedFile.name}</span>
+                  </div>
+                ) : (
+                  <img src={filePreviewUrl} alt="Upload Target Track" />
+                )}
+                <button type="button" className="remove-preview-btn" onClick={removePickedFile}>
                   <CloseIcon />
                 </button>
               </div>
@@ -555,19 +440,21 @@ const Dashboard = () => {
           )}
 
           <form className="message-input-bar" ref={inputBarRef} onSubmit={(e) => { e.preventDefault(); streamNewMessage(input); }}>
+            
+            {/* 🛠️ FIX 1: accept attribute modified to support images and PDFs dynamic selection */}
             <input 
               type="file" 
               ref={fileInputRef} 
               style={{ display: 'none' }} 
-              accept="image/*" 
-              onChange={handleImagePick} 
+              accept="image/*,application/pdf" 
+              onChange={handleFilePick} 
             />
 
             <button 
               type="button" 
               className="plus-attachment-btn" 
               onClick={() => fileInputRef.current?.click()}
-              title="Upload Image Asset"
+              title="Upload Image or PDF"
             >
               <PlusIcon />
             </button>
@@ -578,26 +465,15 @@ const Dashboard = () => {
               onChange={(e) => setInput(e.target.value)}
               onFocus={() => handleInputFocus(true)}
               onBlur={() => handleInputFocus(false)}
-              placeholder={isUploading ? "Uploading file structure..." : "Ask anything..."}
+              placeholder={isUploading ? "Uploading files..." : "Ask anything..."}
               disabled={isUploading}
             />
             
-            <button 
-              type="button" 
-              className={`mic-action-btn ${isListening ? 'active-listening' : ''}`}
-              onClick={toggleVoiceInput}
-              disabled={isUploading}
-            >
+            <button type="button" className={`mic-action-btn ${isListening ? 'active-listening' : ''}`} onClick={toggleVoiceInput} disabled={isUploading}>
               <MicIcon />
             </button>
             
-            <button 
-              type="submit" 
-              className="send-action-btn" 
-              ref={sendBtnRef} 
-              disabled={isUploading}
-              style={{ opacity: isUploading ? 0.5 : 1 }}
-            >
+            <button type="submit" className="send-action-btn" ref={sendBtnRef} disabled={isUploading} style={{ opacity: isUploading ? 0.5 : 1 }}>
               <SendArrow />
             </button>
           </form>
