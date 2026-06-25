@@ -2,7 +2,7 @@ import "dotenv/config";
 import app from "./src/app.js";
 import http from 'http'
 import { initsocket } from "./src/sockets/server.socket.js";
-import {extractTextFromPDF} from './src/service/rag.service.js'
+
 
 import connectDatabase from "./src/config/db.js";
 const PORT = process.env.PORT || 5000;
@@ -21,7 +21,7 @@ const startServer = async () => {
   }
 };
 // startChat()
-extractTextFromPDF()
+
 startServer();
 
 

@@ -2,7 +2,7 @@ import chatmodel from "../models/Chat.js";
 import messagemodel from "../models/Message.js";
 import { startChat, genratetitle } from "../service/ai.service.js";
 import { uploadImage } from "../middleware/imageupload.js";
-import extractTextFromPDF from "../service/rag.service.js";
+import extractTextFromPDF from '../service/rag.service.js';
 import chatImageModel from "../models/chatimage.js";
 import mongoose from "mongoose";
 
