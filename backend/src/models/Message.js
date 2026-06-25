@@ -1,4 +1,4 @@
-import mongoose, { Schema } from "mongoose";
+import mongoose from "mongoose";
 
 const messageschema = new mongoose.Schema({
   chat: {
@@ -13,27 +13,26 @@ const messageschema = new mongoose.Schema({
   },
   content: {
     type: String,
-    required: true,
+   
+    required: false, 
+    default: ""
   },
   image: {
     type: String,
     required: false,
   },
-  file :{
-    type : String,
-    required : false
+  
+  pdf: {
+    type: String,
+    required: false,
+  },
+  file: {
+    type: String,
+    required: false
   }
 },
 { timestamps: true }
-)
-const messagemodel = mongoose.model("message",messageschema)
- export  default messagemodel ;
+);
 
-
-
-
-
-
-
-
-
+const messagemodel = mongoose.model("message", messageschema);
+export default messagemodel;

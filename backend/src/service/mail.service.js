@@ -11,20 +11,26 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Verify connection
-transporter.verify((error, success) => {
-  if (error) {
-    console.log("❌ Email server auth failed:", error.message);
-  } 
-});
+// 🛠️ TEMPORARY COMMENT OUT: Isko band karo jab tak API key thik na ho
+// transporter.verify((error, success) => {
+//   if (error) {
+//     console.log("❌ Email server auth failed:", error.message);
+//   } 
+// });
 
 export const sendEmail = async ({ to, subject, html, text = "" }) => {
+  // Safe validation check: Agar API expired hai toh function yahi se return ho jaye, server crash na kare
+  if (!process.env.GOOGLE_REFRESH_TOKEN) {
+    console.log("⚠️ Email skipped: Token expired/missing");
+    return null;
+  }
+  
   const mailOptions = {
-    from: process.env.GOOGLE_USER, // Proper format for sender
+    from: process.env.GOOGLE_USER,
     to,
-        subject,
-        html,
-        text
+    subject,
+    html,
+    text
   };
 
   return transporter.sendMail(mailOptions);

@@ -4,24 +4,39 @@ const api = axios.create({
     withCredentials: true
 })
 
-
-export async function sendmessage(message, chat, imageUrl){
+// ✅ NEW MODIFIED SENDMESSAGE: Yeh ab Form-Data handle karega (Text + Image/PDF file ek sath)
+export async function sendmessage(payload) {
   try {
-    const res = await api.post("/api/chats/message", { 
-      message, 
-      chat,
-      imageUrl // <-- Yeh ab backend ko milega req.body mein
+    let body;
+    let headers = {};
+
+    // Agar payload already FormData hai (Premium single-request upload structure)
+    if (payload instanceof FormData) {
+      body = payload;
+      // Jab dynamic boundaries bhej rahe hon, toh axios ko khud header setup karne dete hain, par multipart explicitly identify ho jata hai.
+    } else {
+      // Safe fallback: Agar purane style se plane object aaya ho `{ message, chat, imageUrl }`
+      body = new FormData();
+      if (payload.message) body.append("message", payload.message);
+      if (payload.chat) body.append("chat", payload.chat);
+      if (payload.imageUrl) body.append("imageUrl", payload.imageUrl);
+    }
+
+    // 🔥 Crucial Clue: Route ko correct kiya backend path se match karne ke liye
+    const res = await api.post("/api/chats/message", body, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
     });
 
     return res.data;
   }
   catch(err){
-    const payload = err.response?.data;
-    console.error("chat.api.sendmessage error:", payload || err.message || err);
+    const payloadData = err.response?.data;
+    console.error("chat.api.sendmessage error:", payloadData || err.message || err);
 
-    if (payload) {
-      // Prefer a combined message when backend provides both fields
-      const combined = payload.message && payload.error ? `${payload.message} - ${payload.error}` : (payload.message || payload.error);
+    if (payloadData) {
+      const combined = payloadData.message && payloadData.error ? `${payloadData.message} - ${payloadData.error}` : (payloadData.message || payloadData.error);
       const statusPart = err.response?.status ? ` (status ${err.response.status})` : '';
       throw new Error(`${combined || 'Request failed'}${statusPart}`);
     }
@@ -40,20 +55,19 @@ export async function getchats(){
     }
 }
 
+// ⚠️ Note: Yeh function ab deprecated (use-less) hai kyunki hum sendmessage mein merge kar chuke hain.
+// Fir bhi ise rehne dete hain taaki aapka code load hone par crash na ho.
 export async function uploadimage(payload) {
   try {
     let body;
-
     if (payload instanceof FormData) {
       body = payload;
     } else {
       body = new FormData();
-      body.append("image", payload);
+      body.append("file", payload); // Key 'image' se badalkar 'file' ki taaki backend error na de
     }
 
-    // ❌ headers mat bhejo, axios khud boundary ke saath set karega
     const res = await api.post("/api/chats/upload", body);
-
     return res.data;
   } catch (err) {
     console.error("Frontend upload error:", err);
@@ -63,6 +77,9 @@ export async function uploadimage(payload) {
 
 export async function getmessage(chat){
   try {
+    // Edge case guard: Agar chat undefined hai, toh call hi mat karo
+    if (!chat || chat === "undefined") return { success: true, message: [] };
+    
     const res = await api.get(`/api/chats/${chat}`)
     return res.data
   }

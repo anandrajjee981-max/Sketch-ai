@@ -24,15 +24,15 @@ const casualSuggestions = [
 ]
 
 const Dashboard = () => {
-  const chat = usechat()
-  const { handleSendMessage, handleGetChats, handleGetMessages, handleSelectChat, handleDeleteChat, handleUploadImage } = usechat()
+  // Destructuring optimization directly from hook layer
+  const { handleSendMessage, handleGetChats, handleGetMessages, handleSelectChat, handleDeleteChat } = usechat()
   
   const [isListening, setIsListening] = useState(false)
   const recognitionRef = useRef(null)
 
   // System Core States
-  const [selectedFile, setSelectedFile] = useState(null) // Renamed from selectedImage
-  const [filePreviewUrl, setFilePreviewUrl] = useState('') // Renamed from imagePreviewUrl
+  const [selectedFile, setSelectedFile] = useState(null) 
+  const [filePreviewUrl, setFilePreviewUrl] = useState('') 
   const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef(null)
 
@@ -71,8 +71,6 @@ const Dashboard = () => {
   }, [])
 
   useEffect(() => {
-    chat?.intializesocket?.()
-    
     const fetchSidebarHistory = async () => {
       if (handleGetChats) {
         try {
@@ -118,7 +116,6 @@ const Dashboard = () => {
     isListening ? recognitionRef.current.stop() : recognitionRef.current.start()
   }
 
-  // Handle Dynamic File Selection (Images & PDFs)
   const handleFilePick = (e) => {
     const file = e.target.files[0]
     if (!file) return
@@ -224,7 +221,7 @@ const Dashboard = () => {
             id: msg._id || msg.id || Math.random().toString(),
             role: msg.role === 'user' ? 'user' : 'ai',
             text: msg.content || msg.text || '',
-            image: msg.image || msg.pdf || null, // Capture both image asset or PDF links
+            image: msg.image || msg.pdf || null, 
             isPdf: !!msg.pdf
           })))
         } else {
@@ -246,30 +243,16 @@ const Dashboard = () => {
     } catch (err) { console.error(err) }
   }
 
-  // Core Submissions Unified Flow
+  // ✅ FIXED CORE STREAM SUBMISSION: Ab koi alag upload call nahi hoga, direct single-payload stream chalega
   const streamNewMessage = async (promptContent) => {
     if (!promptContent.trim() && !selectedFile) return
 
     setIsUploading(true)
-    let finalFileUrl = null
     const displayFilePreview = filePreviewUrl 
     const currentIsPdf = selectedFile?.type === "application/pdf"
+    const fileToUpload = selectedFile || null // Capture raw file context local reference
 
-    if (selectedFile && handleUploadImage) {
-      try {
-        const formData = new FormData()
-        // 🛠️ FIX 2: Key ko 'file' kiya taaki backend par upload.single('file') isse catch kar sake
-        formData.append('file', selectedFile) 
-        
-        const uploadRes = await handleUploadImage(formData)
-        finalFileUrl = uploadRes?.imageUrl || uploadRes?.url || null
-      } catch (err) {
-        console.error("Upload mapping failed:", err)
-        setIsUploading(false)
-        return 
-      }
-    }
-
+    // Optimistic UI update: User side bubble text & immediate local preview state render
     const userMessageId = Date.now()
     setMessages((prev) => [...prev, { 
       id: userMessageId, 
@@ -292,10 +275,15 @@ const Dashboard = () => {
 
     try {
       let res = null
-      // Pass file link dynamically into standard sender pipeline
-      if (handleSendMessage) res = await handleSendMessage(promptContent, currentChatId, finalFileUrl)
+      
+      // 🔥 FIX 2: handleSendMessage ko pure parameters pass karein (Message, Current ID, Raw File Object)
+      if (handleSendMessage) {
+        res = await handleSendMessage(promptContent, currentChatId, fileToUpload)
+      }
+      
       if (!res) throw new Error("Empty response map.")
 
+      // Space dynamic alignment verification
       if (res?.chatId && res.chatId !== currentChatId) {
         setCurrentChatId(res.chatId)
         if (handleGetChats) {
@@ -316,7 +304,7 @@ const Dashboard = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
       }, 10)
     } catch (error) {
-      console.error(error)
+      console.error("Pipeline breakdown error:", error)
     } finally {
       setIsUploading(false)
     }
@@ -343,7 +331,9 @@ const Dashboard = () => {
             return (
               <div key={itemId} className="history-item-wrapper" onMouseEnter={() => handleHistoryHover(index, true)} onMouseLeave={() => handleHistoryHover(index, false)}>
                 <div className="active-indicator" ref={el => indicatorRefs.current[index] = el} style={{ opacity: isActive ? 1 : 0, height: isActive ? '16px' : '0px' }} />
-                <button Deserted ref={el => historyRefs.current[index] = el} className={`history-item ${isActive ? 'active' : ''}`} onClick={() => selectChatContext(itemId)}>
+                
+                {/* 🛠️ FIX 1: 'Deserted' attribute warning completely resolved by casing standard html data layout */}
+                <button ref={el => historyRefs.current[index] = el} className={`history-item ${isActive ? 'active' : ''}`} onClick={() => selectChatContext(itemId)}>
                   {item.title || item.heading || `Chat session ${index + 1}`}
                 </button>
                 <button className="menu-trigger-btn" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveMenuChatId(isMenuOpen ? null : itemId) }}><ThreeDotsIcon /></button>
@@ -388,7 +378,6 @@ const Dashboard = () => {
                     <span className="author-tag">{m.role === 'user' ? 'You' : 'Sketch AI'}</span>
                     <div className="bubble">
                       
-                      {/* Render Conditional Layer for Image or PDF Attachments */}
                       {m.role === 'user' && m.image && (
                         <div className="chat-message-image-container">
                           {m.isPdf ? (
@@ -441,7 +430,6 @@ const Dashboard = () => {
 
           <form className="message-input-bar" ref={inputBarRef} onSubmit={(e) => { e.preventDefault(); streamNewMessage(input); }}>
             
-            {/* 🛠️ FIX 1: accept attribute modified to support images and PDFs dynamic selection */}
             <input 
               type="file" 
               ref={fileInputRef} 

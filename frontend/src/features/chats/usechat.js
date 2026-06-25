@@ -1,5 +1,4 @@
 import { useDispatch, useSelector } from "react-redux";
-
 import { intializesocket } from "../../service/chat.socket";
 
 import {
@@ -22,74 +21,65 @@ import {
 
 export const usechat = () => {
   const dispatch = useDispatch();
+  const chatState = useSelector((state) => state.chat);
 
-  const chatState = useSelector(
-    (state) => state.chat
-  );
+  // NEW UNIFIED HANDLER: Yeh plain parameters ya direct file/FormData dono accept karega
+  async function handleSendMessage(message, chatid, fileOrUrl = null) {
+    try {
+      dispatch(setLoading(true));
 
+      // CRITICAL FIX: Custom Multi-part Form Data Structure Build Karein
+      const formData = new FormData();
+      if (message) formData.append("message", message.trim());
+      if (chatid) formData.append("chat", chatid);
 
+      if (fileOrUrl) {
+        if (fileOrUrl instanceof File || fileOrUrl instanceof Blob) {
+          // Agar direct local file object (Image/PDF) mili hai toh use 'file' key mein daalein
+          formData.append("file", fileOrUrl);
+        } else if (typeof fileOrUrl === "string") {
+          // Agar pehle se string imageUrl hai
+          formData.append("imageUrl", fileOrUrl);
+        }
+      }
 
+      // Single network flow trigger karein
+      const res = await sendmessage(formData);  
 
-
-
-
-async function handleSendMessage(message, chatid, imageUrl) {
-  try {
-    dispatch(setLoading(true));
-    
-    // 1. Grab current active messages directly from your Redux store state
-    const currentMessages = chatState.chats.messages || [];
-
-    // 2. Check if this is a follow-up conversation 
-    if (chatid && currentMessages.length > 0) {
-      // Pass both the query string and the target chat identifier string
-      const res = await sendmessage(message, chatid, imageUrl);  
+      // Redux custom state update block
+      if (res.usermessage) dispatch(addMessage(res.usermessage));
+      if (res.aimessage) dispatch(addMessage(res.aimessage));
       
-      dispatch(addMessage(res.usermessage));
-      dispatch(addMessage(res.aimessage));
       dispatch(setLoading(false));
       return res;       
-    } 
-    
-    // 3. Fallback/Initial message context flow path if chatid is missing or new
-    const res = await sendmessage(message, chatid, imageUrl);
-
-    dispatch(addMessage(res.usermessage));
-    dispatch(addMessage(res.aimessage));
-
-    dispatch(setLoading(false));
-    return res;
-  } catch (err) {
-    dispatch(setError(err.message));
-    dispatch(setLoading(false));
-    throw err;
+    } catch (err) {
+      dispatch(setError(err.message));
+      dispatch(setLoading(false));
+      throw err;
+    }
   }
-}
-async function handleUploadImage(file) {
-  try {
-    dispatch(setLoading(true));
 
-    const res = await uploadimage(file);
-
-    dispatch(setLoading(false));
-    return res;
-  } catch (err) {
-    dispatch(setError(err.message));
-    dispatch(setLoading(false));
-    throw err;
+  // ⚠️ NOTE: Yeh handleUploadImage ab deprecated hai, 
+  // kyunki hum handleSendMessage ke teesre parameter mein hi file bhej denge.
+  async function handleUploadImage(file) {
+    try {
+      dispatch(setLoading(true));
+      const res = await uploadimage(file);
+      dispatch(setLoading(false));
+      return res;
+    } catch (err) {
+      dispatch(setError(err.message));
+      dispatch(setLoading(false));
+      throw err;
+    }
   }
-}
 
   async function handleGetChats() {
     try {
       dispatch(setLoading(true));
-
       const res = await getchats();
-
       dispatch(setChats(res.chat));
-
       dispatch(setLoading(false));
-
       return res.chat;
     } catch (err) {
       dispatch(setError(err.message));
@@ -98,61 +88,53 @@ async function handleUploadImage(file) {
     }
   }
 
-async function handleGetMessages(chat) {
-  // 🔍 Edge Case Check: Agar chatId string 'undefined' ya khali aa rahi hai toh api hit hi mat karo
-  if (!chat || chat === "undefined") {
-    console.warn("handleGetMessages aborted: Invalid or undefined chat parameter received.");
-    return [];
+  async function handleGetMessages(chat) {
+    if (!chat || chat === "undefined") {
+      console.warn("handleGetMessages aborted: Invalid or undefined chat parameter received.");
+      return [];
+    }
+
+    try {
+      dispatch(setLoading(true));
+      const res = await getmessage(chat);
+      console.log("Messages response received:", res);
+
+      const cleanMessages = res?.message || res?.data?.message || [];
+      dispatch(setMessages(cleanMessages));
+      dispatch(setLoading(false));
+      return cleanMessages;
+    } catch (err) {
+      console.error("Error in handleGetMessages workflow:", err);
+      const backendError = err.response?.data?.message || err.message || "Failed to fetch messages";
+      dispatch(setError(backendError));
+      dispatch(setLoading(false));
+      return [];
+    }
   }
-
-  try {
-    dispatch(setLoading(true));
-
-    const res = await getmessage(chat);
-    console.log("Messages response received:", res);
-
-    // ✅ FIX 1: Safe extraction lagaya. Agar res.message nahi mila to empty array [] bhejega
-    const cleanMessages = res?.message || res?.data?.message || [];
-
-    dispatch(setMessages(cleanMessages));
-    dispatch(setLoading(false));
-
-    return cleanMessages;
-  } catch (err) {
-    console.error("Error in handleGetMessages workflow:", err);
-
-    // ✅ FIX 2: Safe backend error response message nikalna
-    const backendError = err.response?.data?.message || err.message || "Failed to fetch messages";
-    
-    dispatch(setError(backendError));
-    dispatch(setLoading(false));
-    
-    // UI crash na ho isliye ek safe fallback empty array return kar rahe hain
-    return [];
-  }
-}
 
   async function handleSelectChat(chat) {
     dispatch(setCurrentChat(chat));
-
-    await handleGetMessages(chat._id);
+    if (chat && chat._id) {
+      await handleGetMessages(chat._id);
+    }
   }
-async function handleDeleteChat(chatId) {
-  try {
-    await deletemessage(chatId);
 
-    dispatch(removeChat(chatId));
-  } catch (err) {
-    console.log(err);
+  async function handleDeleteChat(chatId) {
+    try {
+      await deletemessage(chatId);
+      dispatch(removeChat(chatId));
+    } catch (err) {
+      console.log(err);
+    }
   }
-}
+
   return {
     intializesocket,
-handleDeleteChat,
+    handleDeleteChat,
     handleSendMessage,
     handleGetChats,
     handleGetMessages,
     handleSelectChat,
-    handleUploadImage,
+    handleUploadImage, // Backward compatibility ke liye rakha hai
   };
 };

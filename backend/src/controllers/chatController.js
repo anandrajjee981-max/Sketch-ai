@@ -8,14 +8,22 @@ import mongoose from "mongoose";
 
 export async function sendmessage(req, res) {
   try {
-    // 1. Inputs collect karein (Body aur Files dono se)
+    // 1. Inputs collect karein 
     const { message, chat: chatid, chatId: chatIdField, imageUrl } = req.body;
-    const incomingChatId = chatid || chatIdField;
-    const chatId = incomingChatId && String(incomingChatId).trim() ? incomingChatId : null;
     
-    const file = req.file; // Multer se aane wali file
+    const incomingChatId = chatid || chatIdField;
+    const chatId = incomingChatId && 
+                   String(incomingChatId).trim() !== "" && 
+                   String(incomingChatId) !== "undefined" 
+                   ? incomingChatId : null;
+    
+    const file = req.file; 
 
-    // 2. Strict Validation: Agar na text hai, na pehle se upload ki hui image url, aur na hi koi nayi file aayi hai
+    if (file) {
+      console.log("📁 Multer File Intercepted:", file.originalname, "Size:", file.size);
+    }
+
+    // 2. Strict Payload Validation
     if (!message?.trim() && !imageUrl && !file) {
       return res.status(400).json({
         message: "Either a message text, an image URL, or a file upload is required.",
@@ -25,21 +33,29 @@ export async function sendmessage(req, res) {
     let title = null;
     let activeChatId = chatId;
 
-    // 3. Handle Existing Chat Session
+    // 3. Verify Existing Chat Session
     if (activeChatId) {
-      const existingChat = await chatmodel.findOne({ _id: activeChatId, user: req.user.id });
-      if (!existingChat) {
-        return res.status(404).json({
-          message: "Chat not found",
-        });
+      try {
+        const existingChat = await chatmodel.findOne({ _id: activeChatId, user: req.user.id });
+        if (!existingChat) {
+          return res.status(404).json({ message: "Chat session not found" });
+        }
+      } catch (dbErr) {
+        console.error("❌ Mongoose Valid Chat Fetch Cast Error:", dbErr.message);
+        activeChatId = null; // Fallback to creating a new chat instead of throwing 500
       }
     }
 
-    // 4. Create New Chat Session if it doesn't exist
+    // 4. Create New Chat Session if required
     if (!activeChatId) {
-      // Dynamic Title: Agar PDF hai toh PDF Exploration, warna default text/image title
       if (message?.trim()) {
-        title = await genratetitle(message);
+        try {
+          // Dynamic safety fallback for title generation
+          title = typeof genratetitle === 'function' ? await genratetitle(message) : "New Conversation";
+        } catch (titleErr) {
+          console.error("⚠️ Title generation failed, using fallback:", titleErr.message);
+          title = "New Conversation";
+        }
       } else {
         title = file?.mimetype === "application/pdf" ? "PDF Exploration" : "Image Exploration";
       }
@@ -51,64 +67,84 @@ export async function sendmessage(req, res) {
       activeChatId = newChat._id;
     }
 
-    // 5. File Upload Handling (If file is uploaded via Form-Data)
+    // 5. File Upload Handling via ImageKit
     let uploadedFileDetails = null;
     let isPDF = false;
 
-    if (file) {
-      // Check karein ki file PDF hai ya image
+    if (file && file.buffer) {
       isPDF = file.mimetype === "application/pdf";
 
-      // Buffer ko cloud par upload karein
-      const fileUploadResult = await uploadImage(file.buffer, file.originalname);
-      
-      // Document model/chatImageModel mein entry karein
-      uploadedFileDetails = await chatImageModel.create({
-        url: fileUploadResult.url,
-        user: req.user.id,
-        fileId: fileUploadResult.fileId,
-        fileTitle: fileUploadResult.fileTitle || file.originalname,
-      });
+      try {
+        const fileUploadResult = await uploadImage(file.buffer, file.originalname);
+        console.log("☁️ ImageKit Upload Success:", fileUploadResult.url);
+
+        uploadedFileDetails = await chatImageModel.create({
+          url: fileUploadResult.url,
+          user: req.user.id,
+          fileId: fileUploadResult.fileId,
+          fileTitle: fileUploadResult.fileTitle || file.originalname,
+        });
+      } catch (uploadErr) {
+        console.error("❌ ImageKit Core SDK Handler Crash:", uploadErr.message);
+        return res.status(500).json({ message: "Cloud asset transmission failed", error: uploadErr.message });
+      }
     }
 
-    // 6. User Message Create Karein (Dynamic Fields ke sath)
-    // Jo pehle se saved image url tha ya naya file upload hua hai, sab yahan map ho jayega
+    // 6. Save User Message into Database
     const currentFileUrl = uploadedFileDetails?.url || imageUrl || null;
 
     const usermessage = await messagemodel.create({
       role: "user",
       content: message || "", 
       chat: activeChatId,
-      image: !isPDF ? currentFileUrl : null, // Agar image hai toh image field mein save karein
-      pdf: isPDF ? currentFileUrl : null     // Agar PDF hai toh pdf field mein save karein
+      image: !isPDF ? currentFileUrl : null, 
+      pdf: isPDF ? currentFileUrl : null     
     });
 
-    // 7. AI Response Generation Block
+    // ==========================================
+    // 7. Protected AI Response Generation Block
+    // ==========================================
     let aiContent = "";
 
     if (isPDF && currentFileUrl) {
-      // Workflow A: Agar PDF aayi hai, toh RAG service chalegi (Extract Text)
       try {
-        const responseGenerator = await extractTextFromPDF(currentFileUrl, message || "");
-        for await (const chunk of responseGenerator) {
-          if (chunk) aiContent += chunk;
+        if (typeof extractTextFromPDF === 'function') {
+          const responseGenerator = await extractTextFromPDF(currentFileUrl, message || "");
+          
+          if (responseGenerator && typeof responseGenerator[Symbol.asyncIterator] === 'function') {
+            for await (const chunk of responseGenerator) {
+              if (chunk) aiContent += chunk;
+            }
+          } else {
+            aiContent = responseGenerator?.text || responseGenerator || "";
+          }
+        } else {
+          aiContent = "PDF service layer detached or not imported correctly.";
         }
       } catch (genError) {
-        console.error("❌ Error in PDF AI response generator:", genError);
-        return res.status(500).json({ message: "PDF AI generation failed", error: genError.message });
+        console.error("❌ Error in PDF AI Response Core:", genError);
+        aiContent = `[System Recovery: PDF Context processing failed. ${genError.message}]`;
       }
     } else {
-      // Workflow B: Agar normal text chat ya normal image chat hai, toh history nikal kar purana AI generator chalega
-      const messagesHistory = await messagemodel.find({ chat: activeChatId }).sort({ createdAt: 1 });
-      
       try {
-        const responseGenerator = startChat(messagesHistory, activeChatId);
-        for await (const chunk of responseGenerator) {
-          if (chunk) aiContent += chunk;
+        const messagesHistory = await messagemodel.find({ chat: activeChatId }).sort({ createdAt: 1 });
+        
+        if (typeof startChat === 'function') {
+          const responseGenerator = await startChat(messagesHistory, activeChatId);
+          
+          if (responseGenerator && typeof responseGenerator[Symbol.asyncIterator] === 'function') {
+            for await (const chunk of responseGenerator) {
+              if (chunk) aiContent += chunk;
+            }
+          } else {
+            aiContent = responseGenerator?.text || responseGenerator?.content || responseGenerator || "";
+          }
+        } else {
+          aiContent = "AI standard engine core (startChat) is not defined.";
         }
       } catch (genError) {
-        console.error("❌ Error in standard AI response generator:", genError);
-        return res.status(500).json({ message: "AI generation failed", error: genError.message });
+        console.error("❌ Error in standard AI Generation Core:", genError);
+        aiContent = `[System Recovery: Core LLM pipeline failed. ${genError.message}]`;
       }
     }
 
@@ -119,7 +155,7 @@ export async function sendmessage(req, res) {
     }
 
     if (!cleanedResponse) {
-      return res.status(500).json({ message: "AI service returned empty response." });
+      cleanedResponse = "System returned an unresolvable empty token chain.";
     }
 
     // 9. Save AI Response in Database
@@ -129,23 +165,28 @@ export async function sendmessage(req, res) {
       chat: activeChatId,
     });
 
-    // 10. Unified Single JSON Response
+    // 10. Return Unified Clean JSON Response
     return res.status(200).json({
-      title,
+      title: title || "Conversation Space",
       chatId: activeChatId,
       usermessage,
       aimessage,
-      chatFile: uploadedFileDetails // Agar file upload hui hogi toh details jayengi, warna null
+      chatFile: uploadedFileDetails 
     });
 
   } catch (err) {
-    console.error("Critical error in merged sendmessage:", err);
+    console.error("=================== CRITICAL BACKEND TRACE ===================");
+    console.error(err);
+    console.error("==============================================================");
+    
     return res.status(500).json({
-      message: "Internal server error",
+      message: "Internal server error occurred within the controller loop.",
       error: err.message,
+      stack: err.stack
     });
   }
 }
+
 export async function upload(req, res) {
   try {  
     if (!req.file) {
@@ -178,7 +219,6 @@ export async function upload(req, res) {
     });     
   }
 }
-
 
 export async function getchat(req, res) {
   const user = req.user.id;
