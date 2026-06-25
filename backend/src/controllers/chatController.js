@@ -2,26 +2,30 @@ import chatmodel from "../models/Chat.js";
 import messagemodel from "../models/Message.js";
 import { startChat, genratetitle } from "../service/ai.service.js";
 import { uploadImage } from "../middleware/imageupload.js";
+import extractTextFromPDF from "../service/rag.service.js";
 import chatImageModel from "../models/chatimage.js";
 import mongoose from "mongoose";
 
 export async function sendmessage(req, res) {
   try {
-    // FIX: Destructure imageUrl (or whatever key you pass from frontend) from body
+    // 1. Inputs collect karein (Body aur Files dono se)
     const { message, chat: chatid, chatId: chatIdField, imageUrl } = req.body;
     const incomingChatId = chatid || chatIdField;
     const chatId = incomingChatId && String(incomingChatId).trim() ? incomingChatId : null;
+    
+    const file = req.file; // Multer se aane wali file
 
-    // Check if both message AND image are missing
-    if (!message?.trim() && !imageUrl) {
+    // 2. Strict Validation: Agar na text hai, na pehle se upload ki hui image url, aur na hi koi nayi file aayi hai
+    if (!message?.trim() && !imageUrl && !file) {
       return res.status(400).json({
-        message: "Either a message text or an image is required",
+        message: "Either a message text, an image URL, or a file upload is required.",
       });
     }
 
     let title = null;
     let activeChatId = chatId;
 
+    // 3. Handle Existing Chat Session
     if (activeChatId) {
       const existingChat = await chatmodel.findOne({ _id: activeChatId, user: req.user.id });
       if (!existingChat) {
@@ -31,94 +35,117 @@ export async function sendmessage(req, res) {
       }
     }
 
-    // Create new chat when no existing chat was provided
+    // 4. Create New Chat Session if it doesn't exist
     if (!activeChatId) {
-      // Use fallback title if message is empty but image exists
-      title = message?.trim() ? await genratetitle(message) : "Image Exploration";
+      // Dynamic Title: Agar PDF hai toh PDF Exploration, warna default text/image title
+      if (message?.trim()) {
+        title = await genratetitle(message);
+      } else {
+        title = file?.mimetype === "application/pdf" ? "PDF Exploration" : "Image Exploration";
+      }
 
       const newChat = await chatmodel.create({
         title,
         user: req.user.id,
       });
-
       activeChatId = newChat._id;
     }
 
-    // FIX: Save current user message FIRST along with the structured image link
+    // 5. File Upload Handling (If file is uploaded via Form-Data)
+    let uploadedFileDetails = null;
+    let isPDF = false;
+
+    if (file) {
+      // Check karein ki file PDF hai ya image
+      isPDF = file.mimetype === "application/pdf";
+
+      // Buffer ko cloud par upload karein
+      const fileUploadResult = await uploadImage(file.buffer, file.originalname);
+      
+      // Document model/chatImageModel mein entry karein
+      uploadedFileDetails = await chatImageModel.create({
+        url: fileUploadResult.url,
+        user: req.user.id,
+        fileId: fileUploadResult.fileId,
+        fileTitle: fileUploadResult.fileTitle || file.originalname,
+      });
+    }
+
+    // 6. User Message Create Karein (Dynamic Fields ke sath)
+    // Jo pehle se saved image url tha ya naya file upload hua hai, sab yahan map ho jayega
+    const currentFileUrl = uploadedFileDetails?.url || imageUrl || null;
+
     const usermessage = await messagemodel.create({
       role: "user",
       content: message || "", 
       chat: activeChatId,
-      image: imageUrl || null // Make sure your Message model supports an 'image' schema field
+      image: !isPDF ? currentFileUrl : null, // Agar image hai toh image field mein save karein
+      pdf: isPDF ? currentFileUrl : null     // Agar PDF hai toh pdf field mein save karein
     });
 
-    // Fetch conversation history
-    const messages = await messagemodel
-      .find({ chat: activeChatId })
-      .sort({ createdAt: 1 });
-
-    console.log("Messages sent to AI:", messages.length);
-    // Log a small preview of the last few messages for debugging
-    console.log("Messages preview:", messages.slice(-6).map(m => ({ role: m.role, content: (m.content||m.text||'').slice(0,120) })));
-
-    // FIX: Consume async generator from startChat to produce the final text response.
+    // 7. AI Response Generation Block
     let aiContent = "";
-    try {
-      const responseGenerator = startChat(messages, activeChatId);
-      for await (const chunk of responseGenerator) {
-        if (chunk) {
-          aiContent += chunk;
+
+    if (isPDF && currentFileUrl) {
+      // Workflow A: Agar PDF aayi hai, toh RAG service chalegi (Extract Text)
+      try {
+        const responseGenerator = await extractTextFromPDF(currentFileUrl, message || "");
+        for await (const chunk of responseGenerator) {
+          if (chunk) aiContent += chunk;
         }
+      } catch (genError) {
+        console.error("❌ Error in PDF AI response generator:", genError);
+        return res.status(500).json({ message: "PDF AI generation failed", error: genError.message });
       }
-    } catch (genError) {
-      console.error("❌ Error in AI response generator:", genError?.stack || genError);
-      return res.status(500).json({
-        message: "AI generation failed",
-        error: genError?.message || String(genError),
-      });
+    } else {
+      // Workflow B: Agar normal text chat ya normal image chat hai, toh history nikal kar purana AI generator chalega
+      const messagesHistory = await messagemodel.find({ chat: activeChatId }).sort({ createdAt: 1 });
+      
+      try {
+        const responseGenerator = startChat(messagesHistory, activeChatId);
+        for await (const chunk of responseGenerator) {
+          if (chunk) aiContent += chunk;
+        }
+      } catch (genError) {
+        console.error("❌ Error in standard AI response generator:", genError);
+        return res.status(500).json({ message: "AI generation failed", error: genError.message });
+      }
     }
 
-    const response = aiContent.trim();
-
-    // Check if response is empty and log for debugging
-    if (!response) {
-      console.warn("⚠️ Warning: AI returned empty response for chat:", activeChatId);
-      console.warn("Messages sent:", messages.map(m => ({role: m.role, content: m.content?.substring(0, 50)})));
-      return res.status(500).json({
-        message: "AI service returned empty response. Please try again.",
-        error: "Empty AI response"
-      });
-    }
-
-    // Clean up the response - remove "tools" prefix and other artifacts
-    let cleanedResponse = response;
+    // 8. Clean AI Response Data
+    let cleanedResponse = aiContent.trim();
     if (cleanedResponse.startsWith("tools")) {
       cleanedResponse = cleanedResponse.replace(/^tools\s*/, "").trim();
     }
 
-    // Save AI response
+    if (!cleanedResponse) {
+      return res.status(500).json({ message: "AI service returned empty response." });
+    }
+
+    // 9. Save AI Response in Database
     const aimessage = await messagemodel.create({
       role: "ai",
       content: cleanedResponse,
       chat: activeChatId,
     });
 
+    // 10. Unified Single JSON Response
     return res.status(200).json({
       title,
       chatId: activeChatId,
       usermessage,
       aimessage,
+      chatFile: uploadedFileDetails // Agar file upload hui hogi toh details jayengi, warna null
     });
-  } catch (err) {
-    console.error(err);
 
+  } catch (err) {
+    console.error("Critical error in merged sendmessage:", err);
     return res.status(500).json({
       message: "Internal server error",
       error: err.message,
     });
   }
 }
-
 export async function upload(req, res) {
   try {  
     if (!req.file) {
@@ -151,6 +178,7 @@ export async function upload(req, res) {
     });     
   }
 }
+
 
 export async function getchat(req, res) {
   const user = req.user.id;

@@ -18,6 +18,10 @@ const messageschema = new mongoose.Schema({
   image: {
     type: String,
     required: false,
+  },
+  file :{
+    type : String,
+    required : false
   }
 },
 { timestamps: true }
