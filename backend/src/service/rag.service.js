@@ -1,4 +1,4 @@
-import pdf from 'pdf-parse'; // Make sure aap default import 'pdf' use kar rahe hain
+import * as pdf from 'pdf-parse';
 import { MistralAIEmbeddings } from "@langchain/mistralai";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { Pinecone } from '@pinecone-database/pinecone';
